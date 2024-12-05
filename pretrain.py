@@ -150,7 +150,7 @@ def main():
         d_model = args.music_dim
     )
 
-    bart = ML_BART(bartconfig, class_num = args.light_dim).to(device)
+    bart = ML_BART(bartconfig, class_num = args.light_dim, pretrain = True).to(device)
     model = Token_Classifier(hidden_dim = args.music_dim, class_num = args.music_dim).to(device)
     discriminator = Sequence_Classifier(class_num = 2, hs = args.music_dim, da = args.music_dim, r = args.heads).to(device)
 

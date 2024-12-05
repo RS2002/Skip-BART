@@ -1,0 +1,127 @@
+from sklearn.metrics import mutual_info_score
+
+from model import ML_BART, ML_Classifier
+from transformers import BartConfig, AdamW
+import argparse
+import tqdm
+import torch
+from torch.utils.data import DataLoader
+import torch.nn as nn
+import numpy as np
+from dataset import load_data
+from util import sampling
+from v0.plot_intensity import batch_size
+
+pad = -1000
+
+def get_args():
+    parser = argparse.ArgumentParser(description='')
+
+    parser.add_argument("--music_dim", type=int, default=512)
+    parser.add_argument("--light_dim", type=int, nargs='+', default=[256,256,256])
+
+    parser.add_argument("--p", type=float, nargs='+', default=[0.9,0.9,0.9])
+    parser.add_argument("--t", type=float, nargs='+', default=[1.1,1.1,1.1])
+
+    parser.add_argument('--layers', type=int, default=6)
+    parser.add_argument('--max_len', type=int, default=600)
+    parser.add_argument('--gap', type=int, default=0)
+    parser.add_argument('--heads', type=int, default=8)
+
+    parser.add_argument("--cpu", action="store_true",default=False)
+    parser.add_argument("--cuda_devices", type=int, nargs='+', default=[0])
+    parser.add_argument('--lr', type=float, default=0.001)
+    parser.add_argument('--batch_size', type=int, default=16)
+    parser.add_argument('--converge_epoch', type=int, default=30)
+
+    parser.add_argument('--data_path', type=str, default="./discard/test/data")
+    parser.add_argument('--train_prop', type=float, default=0.5)
+
+    parser.add_argument('--bart_path', type=str, default="./bart_finetune.pth")
+    parser.add_argument('--head_path', type=str, default="./head_finetune.pth")
+
+    args = parser.parse_args()
+    return args
+
+
+def iteration(data_loader,device,bart,model,p,t):
+    output = []
+
+    pbar = tqdm.tqdm(data_loader, disable=False)
+    for music, gt in pbar:
+        music = music.float().to(device)
+        gt = gt.float().to(device)
+        light = torch.zeros_like(gt) + 256
+        light[:,0,:] = gt[:,0,:]
+        light = torch.round(light)
+        light = light.long()
+
+        non_pad = (music != pad).to(device)
+        attn_mask = non_pad[...,0].float()
+        attn_mask_light = torch.zeros_like(attn_mask)
+        attn_mask_light[:,1:] = attn_mask[:,:-1]
+        attn_mask_light[:,0] = attn_mask[:,0]
+
+        batch_size, seq_len, _ = music.shape
+        result = torch.zeros([batch_size, seq_len, 3]) + 256
+
+        for i in range(seq_len):
+            h_temp, s_temp, v_temp =  model(bart(music,light,attn_mask,attn_mask_light))
+
+            for j in range(batch_size):
+                if attn_mask[j,i] == 1:
+                    h = sampling(h_temp[j,i,:],p=p[0],t=t[0])
+                    s = sampling(s_temp[j,i,:],p=p[1],t=t[1])
+                    v = sampling(v_temp[j,i,:],p=p[2],t=t[2])
+
+                    result[j,i,0], result[j,i,1], result[j,i,2] = h, s, v
+                    if i != seq_len - 2:
+                        light[j, i + 1, 0], light[j, i + 1, 1], light[j, i + 1, 2] = h, s, v
+
+        output.append(result.cpu().detach())
+
+    output = torch.cat(output, dim=0)
+    return output
+
+def main():
+    args = get_args()
+    cuda_devices = args.cuda_devices
+    if not args.cpu and cuda_devices is not None and len(cuda_devices) >= 1:
+        device_name = "cuda:" + str(cuda_devices[0])
+    else:
+        device_name = "cpu"
+    device = torch.device(device_name)
+
+    bartconfig = BartConfig(
+        max_position_embeddings = args.max_len,
+        encoder_layers = args.layers,
+        encoder_ffn_dim = args.music_dim,
+        encoder_attention_heads = args.heads,
+        decoder_layers = args.layers,
+        decoder_ffn_dim = args.music_dim,
+        decoder_attention_heads = args.heads,
+        d_model = args.music_dim
+    )
+
+    bart = ML_BART(bartconfig, class_num = args.light_dim).to(device)
+    model = ML_Classifier(hidden_dim = args.music_dim, class_num = args.light_dim).to(device)
+
+    if len(cuda_devices) > 1 and not args.cpu:
+        bart = nn.DataParallel(bart, device_ids=cuda_devices)
+        model = nn.DataParallel(model, device_ids=cuda_devices)
+
+    bart.load_state_dict(torch.load(args.bart_path))
+    model.load_state_dict(torch.load(args.head_path))
+
+    torch.set_grad_enabled(False)
+    bart.eval()
+    model.eval()
+
+    test_data = None
+    test_loader = DataLoader(test_data, batch_size=args.batch_size, shuffle=False, num_workers=5)
+
+    output = iteration(test_loader,device,bart,model,args.p,args.t)
+    output = output.numpy()
+    np.save('light.npy', output)
+
+

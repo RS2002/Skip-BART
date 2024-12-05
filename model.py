@@ -57,13 +57,13 @@ class BART(nn.Module):
 
 
 class ML_BART(nn.Module):
-    def __init__(self, bartconfig, class_num = [258,258,258], pretrain = False):
+    def __init__(self, bartconfig, class_num = [256,256,256], pretrain = False):
         super().__init__()
         d_model = bartconfig.d_model
         self.decoder_emb = nn.ModuleList([
-            nn.Embedding(class_num[0], d_model),
-            nn.Embedding(class_num[1], d_model),
-            nn.Embedding(class_num[2], d_model)
+            nn.Embedding(class_num[0] + 1, d_model),
+            nn.Embedding(class_num[1] + 1, d_model),
+            nn.Embedding(class_num[2] + 1, d_model)
         ])
         self.decoder_fusion = MLP([d_model*3,d_model])
         self.bart = BartModel(bartconfig)
@@ -92,12 +92,12 @@ class ML_BART(nn.Module):
 
 
 class ML_Classifier(nn.Module):
-    def __init__(self, hidden_dim = 512, class_num = [258,258,258]):
+    def __init__(self, hidden_dim = 512, class_num = [256,256,256]):
         super().__init__()
         self.classifier = nn.ModuleList([
-            MLP([hidden_dim,hidden_dim,class_num[0]]),
-            MLP([hidden_dim, hidden_dim, class_num[1]]),
-            MLP([hidden_dim, hidden_dim, class_num[2]])
+            MLP([hidden_dim,hidden_dim,class_num[0] + 1]),
+            MLP([hidden_dim, hidden_dim, class_num[1] + 1]),
+            MLP([hidden_dim, hidden_dim, class_num[2] + 1])
         ])
 
     def forward(self, x):

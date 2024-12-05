@@ -22,8 +22,6 @@ def get_args():
     parser.add_argument('--gap', type=int, default=0)
     parser.add_argument('--heads', type=int, default=8)
 
-    parser.add_argument('--attn_hs', type=int, default=128)
-
     parser.add_argument("--cpu", action="store_true",default=False)
     parser.add_argument("--cuda_devices", type=int, nargs='+', default=[0])
     parser.add_argument('--lr', type=float, default=0.001)
