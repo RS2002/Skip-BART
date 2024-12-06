@@ -25,25 +25,40 @@ class ML_Dataset(Dataset):
         sample = data['sample']
         light = data['light']
 
-        h = [light[int(i)][0][2][1:] for i in sample]
+        h = [light[int(i)][60][0][1:] for i in sample]
+        v = [light[int(i)][0][1][1:] for i in sample]
         h = np.array(h)
-        values = np.arange(h.shape[1])
-        weighted_sums = np.dot(h, values)
-        counts = np.sum(h, axis=1)
-        h = np.divide(weighted_sums, counts, out=np.zeros_like(weighted_sums, dtype=float), where=counts != 0)
+        v = np.array(v)
+        # # set the hue=0 as the average of the hue=1 and hue=-1
+        # but as 0 cannot be the max, so just ignore it
+        # h[:,0] = (h[:,1]+h[:,-1])//2
+        h = np.argmax(h, axis=1)
+        # print('h shape', h.shape)
+
+        values = np.arange(v.shape[1])
+        weighted_sums = np.dot(v, values)
+        counts = np.sum(v, axis=1)
+        v = np.divide(weighted_sums, counts, out=np.zeros_like(weighted_sums, dtype=float), where=counts != 0)
+
+        # print('v shape', v.shape)
 
         if music_len > self.sample_len:
             start_index = np.random.randint(0, music_len - self.sample_len + 1)
             music = music[start_index:start_index+self.sample_len, :]
             h = h[start_index:start_index+self.sample_len]
+            v = v[start_index:start_index+self.sample_len]
         elif music_len < self.sample_len:
             music = np.concatenate([music, np.zeros([self.sample_len-music_len,music.shape[1]])+pad], axis=0)
-            h_pad = np.min(h) # use minimum value as pad so that it would not influence the norm operation
-            h = np.concatenate([h, np.zeros([self.sample_len-music_len])+h_pad], axis=0)
+            # h_pad = np.min(h) # use minimum value as pad so that it would not influence the norm operation
+            h = np.concatenate([h, np.zeros([self.sample_len-music_len])+pad], axis=0)
+            # v_pad = np.min(v)
+            v = np.concatenate([v, np.zeros([self.sample_len-music_len])+pad], axis=0)
 
         music = music[::(self.gap+1)]
         h = h[::(self.gap+1)]
-        return music, h
+        v = v[::(self.gap+1)]
+        hv = np.stack([h, v], axis=1)
+        return music, hv
 
 def load_data(root_path, train_prop = 0.9, max_len = 600, gap = 0):
     file_path = []
@@ -59,10 +74,28 @@ def load_data(root_path, train_prop = 0.9, max_len = 600, gap = 0):
         return ML_Dataset(file_path[:train_num], max_len, gap), ML_Dataset(file_path[train_num:], max_len, gap)
 
 if __name__ == '__main__':
+    import matplotlib.pyplot as plt
     # test
-    train_data, test_data = load_data("./test/data",train_prop=0.5,pretrain=False)
-    print(len(train_data))
-    print(len(test_data))
-    # print(train_data[0].shape)
-    print(train_data[0][0].shape)
-    print(train_data[0][1].shape)
+    train_data, test_data = load_data("./test_data/",train_prop=0.5)
+    # print(len(train_data))
+    # print(len(test_data))
+    # # print(train_data[0].shape)
+    # print(train_data[0][0].shape)
+    # print(train_data[0][1].shape)
+    for i in range(len(train_data)):
+        print('no.', i)
+        print(train_data[i][0].shape)
+        print(train_data[i][1].shape)
+        h = train_data[i][1][:,0]
+        v = train_data[i][1][:,1]
+        print([x for x in h if x != pad])
+        print(max(h))
+        print([x for x in v if x != pad])
+        print(max(v))
+        plt.plot([x for x in h if x != pad])
+        plt.show()
+        # plt.hist(v, bins=np.arange(256))
+        plt.plot([x for x in v if x != pad])
+        plt.show()
+        
+    
