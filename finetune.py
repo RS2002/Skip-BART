@@ -15,7 +15,7 @@ def get_args():
     parser = argparse.ArgumentParser(description='')
 
     parser.add_argument("--music_dim", type=int, default=512)
-    parser.add_argument("--light_dim", type=int, nargs='+', default=[256,256,256])
+    parser.add_argument("--light_dim", type=int, nargs='+', default=[180,256])
 
     parser.add_argument('--layers', type=int, default=6)
     parser.add_argument('--max_len', type=int, default=600)
@@ -49,7 +49,6 @@ def iteration(data_loader,device,bart,model,optim,train=True):
         model.eval()
 
     h_acc_list = []
-    s_acc_list = []
     v_acc_list = []
 
     pbar = tqdm.tqdm(data_loader, disable=False)
@@ -64,7 +63,8 @@ def iteration(data_loader,device,bart,model,optim,train=True):
 
         # 1. Tokenize Light
         light = torch.round(light)
-        light[light > 255] = 256
+        light[light[..., 0] > 180, 0] = 180
+        light[light[..., 0] > 256, 0] = 256
         light = light.long()
 
         light_input = torch.zeros_like(light)
@@ -86,32 +86,28 @@ def iteration(data_loader,device,bart,model,optim,train=True):
         attn_mask_light[:,0] = attn_mask[:,0]
 
         # 3. train
-        h_hat, s_hat, v_hat = model(bart(music,light_input,attn_mask,attn_mask_light))
+        h_hat, v_hat = model(bart(music,light_input,attn_mask,attn_mask_light))
         h_out = torch.argmax(h_hat,dim=-1)
-        s_out = torch.argmax(s_hat,dim=-1)
         v_out = torch.argmax(v_hat,dim=-1)
         h_acc = torch.sum((h_out==light[...,0]).float() * attn_mask) / torch.sum(attn_mask)
-        s_acc = torch.sum((s_out==light[...,1]).float() * attn_mask) / torch.sum(attn_mask)
-        v_acc = torch.sum((v_out==light[...,2]).float() * attn_mask) / torch.sum(attn_mask)
+        v_acc = torch.sum((v_out==light[...,1]).float() * attn_mask) / torch.sum(attn_mask)
         h_acc_list.append(h_acc.item())
-        s_acc_list.append(s_acc.item())
         v_acc_list.append(v_acc.item())
 
         # 4. calculate loss
         if train:
             loss_func = nn.CrossEntropyLoss(reduction="none")
-            h_hat, s_hat, v_hat = h_hat.reshape(batch_size * seq_len, -1), s_hat.reshape(batch_size * seq_len, -1), v_hat.reshape(batch_size * seq_len, -1)
-            h, s, v = light[...,0].reshape(batch_size * seq_len), light[...,1].reshape(batch_size * seq_len), light[...,2].reshape(batch_size * seq_len)
+            h_hat, v_hat = h_hat.reshape(batch_size * seq_len, -1), v_hat.reshape(batch_size * seq_len, -1)
+            h, v = light[...,0].reshape(batch_size * seq_len), light[...,1].reshape(batch_size * seq_len)
             attn_mask = attn_mask.reshape(batch_size * seq_len)
             loss_h = torch.sum(loss_func(h_hat,h)*attn_mask) / torch.sum(attn_mask)
-            loss_s = torch.sum(loss_func(s_hat,s)*attn_mask) / torch.sum(attn_mask)
             loss_v = torch.sum(loss_func(v_hat,v)*attn_mask) / torch.sum(attn_mask)
-            loss = loss_h + loss_s + loss_v
+            loss = loss_h + loss_v
             optim.zero_grad()
             loss.backward()
             optim.step()
 
-    return np.mean(h_acc_list), np.mean(s_acc_list), np.mean(v_acc_list)
+    return np.mean(h_acc_list), np.mean(v_acc_list)
 
 def main():
     args = get_args()
@@ -161,17 +157,17 @@ def main():
 
     while True:
         j += 1
-        acc_h, acc_s, acc_v = iteration(train_loader,device,bart,model,optim,train=True)
-        log = "Epoch {} | Training Acc_H {:06f} , Acc_H {:06f} , Acc_V {:06f} | ".format(j, acc_h, acc_s, acc_v)
+        acc_h, acc_v = iteration(train_loader,device,bart,model,optim,train=True)
+        log = "Epoch {} | Training Acc_H {:06f} , Acc_V {:06f} | ".format(j, acc_h, acc_v)
         print(log)
         with open("log.txt", 'a') as file:
             file.write(log)
-        acc_h, acc_s, acc_v = iteration(test_loader,device,bart,model,optim,train=False)
-        log = "Test Acc_H {:06f} , Acc_H {:06f} , Acc_V {:06f} ".format(acc_h, acc_s, acc_v)
+        acc_h, acc_v = iteration(test_loader,device,bart,model,optim,train=False)
+        log = "Test Acc_H {:06f} , Acc_V {:06f} ".format(acc_h, acc_v)
         print(log)
         with open("log.txt", 'a') as file:
             file.write(log + "\n")
-        acc = (acc_h + acc_s + acc_v) / 3
+        acc = (acc_h + acc_v) / 2
         if acc >= acc_best:
             torch.save(bart.state_dict(), "bart_finetune.pth")
             torch.save(model.state_dict(), "head_finetune.pth")

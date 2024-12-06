@@ -1,7 +1,5 @@
-from sklearn.metrics import mutual_info_score
-
 from model import ML_BART, ML_Classifier
-from transformers import BartConfig, AdamW
+from transformers import BartConfig
 import argparse
 import tqdm
 import torch
@@ -10,7 +8,6 @@ import torch.nn as nn
 import numpy as np
 from dataset import load_data
 from util import sampling
-from v0.plot_intensity import batch_size
 
 pad = -1000
 
@@ -18,10 +15,10 @@ def get_args():
     parser = argparse.ArgumentParser(description='')
 
     parser.add_argument("--music_dim", type=int, default=512)
-    parser.add_argument("--light_dim", type=int, nargs='+', default=[256,256,256])
+    parser.add_argument("--light_dim", type=int, nargs='+', default=[180,256])
 
-    parser.add_argument("--p", type=float, nargs='+', default=[0.9,0.9,0.9])
-    parser.add_argument("--t", type=float, nargs='+', default=[1.1,1.1,1.1])
+    parser.add_argument("--p", type=float, nargs='+', default=[0.9,0.9])
+    parser.add_argument("--t", type=float, nargs='+', default=[1.1,1.1])
 
     parser.add_argument('--layers', type=int, default=6)
     parser.add_argument('--max_len', type=int, default=600)
@@ -51,7 +48,9 @@ def iteration(data_loader,device,bart,model,p,t):
     for music, gt in pbar:
         music = music.float().to(device)
         gt = gt.float().to(device)
-        light = torch.zeros_like(gt) + 256
+        light = torch.zeros_like(gt)
+        light[...,0] += 180
+        light[...,1] += 256
         light[:,0,:] = gt[:,0,:]
         light = torch.round(light)
         light = light.long()
@@ -63,20 +62,21 @@ def iteration(data_loader,device,bart,model,p,t):
         attn_mask_light[:,0] = attn_mask[:,0]
 
         batch_size, seq_len, _ = music.shape
-        result = torch.zeros([batch_size, seq_len, 3]) + 256
+        result = torch.zeros([batch_size, seq_len, 2])
+        result[:,0] = 180
+        result[:,1] = 256
 
         for i in range(seq_len):
-            h_temp, s_temp, v_temp =  model(bart(music,light,attn_mask,attn_mask_light))
+            h_temp, v_temp =  model(bart(music,light,attn_mask,attn_mask_light))
 
             for j in range(batch_size):
                 if attn_mask[j,i] == 1:
                     h = sampling(h_temp[j,i,:],p=p[0],t=t[0])
-                    s = sampling(s_temp[j,i,:],p=p[1],t=t[1])
-                    v = sampling(v_temp[j,i,:],p=p[2],t=t[2])
+                    v = sampling(v_temp[j,i,:],p=p[1],t=t[1])
 
-                    result[j,i,0], result[j,i,1], result[j,i,2] = h, s, v
+                    result[j,i,0], result[j,i,1] = h, v
                     if i != seq_len - 2:
-                        light[j, i + 1, 0], light[j, i + 1, 1], light[j, i + 1, 2] = h, s, v
+                        light[j, i + 1, 0], light[j, i + 1, 1] = h, v
 
         output.append(result.cpu().detach())
 

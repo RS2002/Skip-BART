@@ -57,15 +57,14 @@ class BART(nn.Module):
 
 
 class ML_BART(nn.Module):
-    def __init__(self, bartconfig, class_num = [256,256,256], pretrain = False):
+    def __init__(self, bartconfig, class_num = [180,256], pretrain = False):
         super().__init__()
         d_model = bartconfig.d_model
         self.decoder_emb = nn.ModuleList([
             nn.Embedding(class_num[0] + 1, d_model),
-            nn.Embedding(class_num[1] + 1, d_model),
-            nn.Embedding(class_num[2] + 1, d_model)
+            nn.Embedding(class_num[1] + 1, d_model)
         ])
-        self.decoder_fusion = MLP([d_model*3,d_model])
+        self.decoder_fusion = MLP([d_model*2,d_model])
         self.bart = BartModel(bartconfig)
         self.pretrain = pretrain
 
@@ -75,7 +74,7 @@ class ML_BART(nn.Module):
         if self.pretrain:
             emb_decoder = x_decoder
         else:
-            emb_decoder = torch.concatenate([self.decoder_emb[0](x_decoder[...,0]),self.decoder_emb[1](x_decoder[...,1]),self.decoder_emb[2](x_decoder[...,2])],dim=-1)
+            emb_decoder = torch.concatenate([self.decoder_emb[0](x_decoder[...,0]),self.decoder_emb[1](x_decoder[...,1])],dim=-1)
             emb_decoder = self.decoder_fusion(emb_decoder)
 
         y = self.bart(inputs_embeds=emb_encoder, decoder_inputs_embeds=emb_decoder,
@@ -92,19 +91,17 @@ class ML_BART(nn.Module):
 
 
 class ML_Classifier(nn.Module):
-    def __init__(self, hidden_dim = 512, class_num = [256,256,256]):
+    def __init__(self, hidden_dim = 512, class_num = [180,256]):
         super().__init__()
         self.classifier = nn.ModuleList([
             MLP([hidden_dim,hidden_dim,class_num[0] + 1]),
-            MLP([hidden_dim, hidden_dim, class_num[1] + 1]),
-            MLP([hidden_dim, hidden_dim, class_num[2] + 1])
+            MLP([hidden_dim, hidden_dim, class_num[1] + 1])
         ])
 
     def forward(self, x):
         h = self.classifier[0](x)
-        s = self.classifier[1](x)
-        v = self.classifier[2](x)
-        return h,s,v
+        v = self.classifier[1](x)
+        return h,v
 
 
 class SelfAttention(nn.Module):

@@ -16,7 +16,7 @@ def get_args():
     parser = argparse.ArgumentParser(description='')
 
     parser.add_argument("--music_dim", type=int, default=512)
-    parser.add_argument("--light_dim", type=int, nargs='+', default=[256,256,256])
+    parser.add_argument("--light_dim", type=int, nargs='+', default=[180,256])
 
     parser.add_argument('--layers', type=int, default=6)
     parser.add_argument('--max_len', type=int, default=600)
