@@ -9,6 +9,7 @@ import numpy as np
 from dataset import load_data
 import random
 import copy
+from sklearn.model_selection import train_test_split
 
 pad = -1000
 
@@ -169,7 +170,8 @@ def main():
     mse_epoch = 0
     j = 0
 
-    train_data, test_data = None, None
+    dataset = load_data(args.data_path, None, args.max_len, args.gap)
+    train_data, test_data = train_test_split(dataset, test_size=1-args.train_prop)
     train_loader = DataLoader(train_data, batch_size=args.batch_size, shuffle=True, num_workers=5)
     test_loader = DataLoader(test_data, batch_size=args.batch_size, shuffle=True, num_workers=5)
 
@@ -196,3 +198,7 @@ def main():
         if mse_epoch >= args.converge_epoch:
             break
         print("Converge Epoch {:}".format(mse_epoch))
+
+
+if __name__ == '__main__':
+    main()

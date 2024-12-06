@@ -117,7 +117,7 @@ def main():
     bart.eval()
     model.eval()
 
-    test_data = None
+    _, test_data = load_data(args.data_path, args.train_prop, args.max_len, args.gap)
     test_loader = DataLoader(test_data, batch_size=args.batch_size, shuffle=False, num_workers=5)
 
     output = iteration(test_loader,device,bart,model,args.p,args.t)
@@ -125,3 +125,5 @@ def main():
     np.save('light.npy', output)
 
 
+if __name__ == '__main__':
+    main()

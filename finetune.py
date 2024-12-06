@@ -54,18 +54,24 @@ def iteration(data_loader,device,bart,model,optim,train=True):
     pbar = tqdm.tqdm(data_loader, disable=False)
     for music, light in pbar:
         music = music.float().to(device)
-        light = light.float().to(device)
+        light = light.numpy()
 
-        # 0. Random Pad
-        length = random.randint(0, 500)
-        music[:, 600 - length:, :] = pad
-        light[:, 600 - length:, :] = pad
+        # # 0. Random Pad
+        # length = random.randint(0, 500)
+        # music[:, 600 - length:, :] = pad
+        # light[:, 600 - length:, :] = pad
 
         # 1. Tokenize Light
+        light[light[..., 0] < 0, 0] = 180
+        light[light[..., 1] < 0, 1] = 256
+
+        light = torch.from_numpy(light)
         light = torch.round(light)
-        light[light[..., 0] > 180, 0] = 180
-        light[light[..., 0] > 256, 0] = 256
-        light = light.long()
+        light = light.long().to(device)
+
+        # print(light[0,:,0])
+        # print(light[0,:,1])
+        # exit()
 
         light_input = torch.zeros_like(light)
         light_input[:,1:,:] = light[:,:-1,:]
@@ -145,13 +151,14 @@ def main():
     params = set(bart.parameters())| set(model.parameters())
     total_params = sum(p.numel() for p in params if p.requires_grad)
     print('total parameters:', total_params)
-    optim = AdamW(params, lr=args.lr, weight_decay=0.01)
+    optim = AdamW(params, lr=args.lr) #, weight_decay=0.01)
 
     acc_best = 0
     acc_epoch = 0
     j = 0
 
-    train_data, test_data = None, None
+
+    train_data, test_data = load_data(args.data_path, args.train_prop, args.max_len, args.gap)
     train_loader = DataLoader(train_data, batch_size=args.batch_size, shuffle=True, num_workers=5)
     test_loader = DataLoader(test_data, batch_size=args.batch_size, shuffle=True, num_workers=5)
 
@@ -178,3 +185,6 @@ def main():
         if acc_epoch >= args.converge_epoch:
             break
         print("Converge Epoch {:}".format(acc_epoch))
+
+if __name__ == '__main__':
+    main()
