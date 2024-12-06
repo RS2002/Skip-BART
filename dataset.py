@@ -25,22 +25,23 @@ class ML_Dataset(Dataset):
         sample = data['sample']
         light = data['light']
 
-        h = [light[int(i)][60][0][1:] for i in sample]
-        v = [light[int(i)][0][1][1:] for i in sample]
+        h = [light[int(i)][60][0] for i in sample]
+        v = [light[int(i)][0][1] for i in sample]
         h = np.array(h)
-        v = np.array(v)
-        # # set the hue=0 as the average of the hue=1 and hue=-1
-        # but as 0 cannot be the max, so just ignore it
-        # h[:,0] = (h[:,1]+h[:,-1])//2
-        h = np.argmax(h, axis=1)
         # print('h shape', h.shape)
+        v = np.array(v)
+        # print('v shape', v.shape)
 
+        # set the hue=0 as the average of the hue=1 and hue=179
+        h[:,0] = (h[:,1]+h[:,179])//2
+        h = np.argmax(h, axis=1)
+
+        v[:,0] = 0
         values = np.arange(v.shape[1])
         weighted_sums = np.dot(v, values)
         counts = np.sum(v, axis=1)
         v = np.divide(weighted_sums, counts, out=np.zeros_like(weighted_sums, dtype=float), where=counts != 0)
 
-        # print('v shape', v.shape)
 
         if music_len > self.sample_len:
             start_index = np.random.randint(0, music_len - self.sample_len + 1)
@@ -76,10 +77,9 @@ def load_data(root_path, train_prop = 0.9, max_len = 600, gap = 0):
 if __name__ == '__main__':
     import matplotlib.pyplot as plt
     # test
-    train_data, test_data = load_data("./test_data/",train_prop=0.5)
+    train_data, test_data = load_data("./test/data/",train_prop=0.5)
     # print(len(train_data))
     # print(len(test_data))
-    # # print(train_data[0].shape)
     # print(train_data[0][0].shape)
     # print(train_data[0][1].shape)
     for i in range(len(train_data)):
