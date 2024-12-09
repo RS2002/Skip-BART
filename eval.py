@@ -20,6 +20,9 @@ def get_args():
     parser.add_argument("--p", type=float, nargs='+', default=[0.9,0.9])
     parser.add_argument("--t", type=float, nargs='+', default=[1.1,1.1])
 
+    parser.add_argument("--h_range", type=int, default=50)
+    parser.add_argument("--v_range", type=int, nargs='+', default=[50,50])
+
     parser.add_argument('--layers', type=int, default=6)
     parser.add_argument('--max_len', type=int, default=600)
     parser.add_argument('--gap', type=int, default=0)
@@ -41,7 +44,7 @@ def get_args():
     return args
 
 
-def iteration(data_loader,device,bart,model,p,t):
+def iteration(data_loader,device,bart,model,p,t,h_range=None,v_range=None):
     output = []
 
     pbar = tqdm.tqdm(data_loader, disable=False)
@@ -71,11 +74,33 @@ def iteration(data_loader,device,bart,model,p,t):
 
             for j in range(batch_size):
                 if attn_mask[j,i] == 1:
-                    h = sampling(h_temp[j,i,:],p=p[0],t=t[0])
-                    v = sampling(v_temp[j,i,:],p=p[1],t=t[1])
+                    h_last, v_last = light[j,i,0], light[j,i,1]
+                    if v_last != 256 and v_range is not None:
+                        v_left = max(0, v_last - v_range[0])
+                        v_right = min(255, v_last + v_range[1])
+                        v_temp[i,j,:v_left] = 1e-8
+                        v_temp[i,j,v_right:] = 1e-8
+                    if h_last != 180 and h_range is not None:
+                        h_left = h_last - h_range
+                        h_right = h_last + h_range
+
+                        if h_left>=0 and h_right<=179:
+                            h_temp[i, j, :h_left] = 1e-8
+                            h_temp[i, j, h_right:] = 1e-8
+                        elif h_left<0 and h_right<=179:
+                            h_left = 180 + h_left
+                            if h_left < h_right:
+                                h_temp[i, j, h_left:h_right] = 1e-8
+                        elif h_left>=0 and h_right>179:
+                            h_right = h_right - 179
+                            if h_right < h_left:
+                                h_temp[i, j, h_right:h_left] = 1e-8
+
+                    h = sampling(h_temp[j,i,:-1],p=p[0],t=t[0])
+                    v = sampling(v_temp[j,i,:-1],p=p[1],t=t[1])
 
                     result[j,i,0], result[j,i,1] = h, v
-                    if i != seq_len - 2:
+                    if i != seq_len - 1:
                         light[j, i + 1, 0], light[j, i + 1, 1] = h, v
 
         output.append(result.cpu().detach())
@@ -117,7 +142,7 @@ def main():
     bart.eval()
     model.eval()
 
-    _, test_data = load_data(args.data_path, args.train_prop, args.max_len, args.gap)
+    _, test_data = load_data(args.data_path, args.train_prop, args.max_len, args.gap, args.shuffle, args.random_seed)
     test_loader = DataLoader(test_data, batch_size=args.batch_size, shuffle=False, num_workers=5)
 
     output = iteration(test_loader,device,bart,model,args.p,args.t)

@@ -33,6 +33,9 @@ def get_args():
 
     parser.add_argument('--model_path', type=str, default=None)
 
+    parser.add_argument("--shuffle", action="store_true",default=False)
+    parser.add_argument('--random_seed', type=int, default=42)
+
 
     args = parser.parse_args()
     return args
@@ -157,8 +160,7 @@ def main():
     acc_epoch = 0
     j = 0
 
-
-    train_data, test_data = load_data(args.data_path, args.train_prop, args.max_len, args.gap)
+    train_data, test_data = load_data(args.data_path, args.train_prop, args.max_len, args.gap, args.shuffle, args.random_seed)
     train_loader = DataLoader(train_data, batch_size=args.batch_size, shuffle=True, num_workers=5)
     test_loader = DataLoader(test_data, batch_size=args.batch_size, shuffle=True, num_workers=5)
 

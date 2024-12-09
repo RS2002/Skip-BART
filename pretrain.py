@@ -163,8 +163,8 @@ def main():
     params = set(bart.parameters())| set(model.parameters())
     total_params = sum(p.numel() for p in params if p.requires_grad)
     print('total parameters:', total_params)
-    optim = AdamW(params, lr=args.lr, weight_decay=0.01)
-    optim_dis = AdamW(discriminator.parameters(), lr=args.lr, weight_decay=0.01)
+    optim = AdamW(params, lr=args.lr)#, weight_decay=0.01)
+    optim_dis = AdamW(discriminator.parameters(), lr=args.lr)#, weight_decay=0.01)
 
     best_mse = 1e8
     mse_epoch = 0

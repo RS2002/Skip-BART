@@ -13,7 +13,8 @@ def nucleus(probs, p):
     sorted_probs = np.sort(probs)[::-1]
     sorted_index = np.argsort(probs)[::-1]
     cusum_sorted_probs = np.cumsum(sorted_probs)
-    after_threshold = cusum_sorted_probs > p
+    p = min(p, 1.0)
+    after_threshold = cusum_sorted_probs >= p
     if sum(after_threshold) > 0:
         last_index = np.where(after_threshold)[0][0] + 1
         candi_index = sorted_index[:last_index]

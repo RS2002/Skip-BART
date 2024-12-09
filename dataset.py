@@ -61,7 +61,7 @@ class ML_Dataset(Dataset):
         hv = np.stack([h, v], axis=1)
         return music, hv
 
-def load_data(root_path, train_prop = 0.9, max_len = 600, gap = 0):
+def load_data(root_path, train_prop = 0.9, max_len = 600, gap = 0, shuffle = False, random_seed = 42):
     file_path = []
     for dirpath, _, filenames in os.walk(root_path):
         for file in filenames:
@@ -71,7 +71,9 @@ def load_data(root_path, train_prop = 0.9, max_len = 600, gap = 0):
         return ML_Dataset(file_path, max_len, gap)
     else:
         train_num = round(len(file_path) * train_prop)
-        # np.random.shuffle(file_path)
+        if shuffle:
+            np.random.seed(random_seed)
+            np.random.shuffle(file_path)
         return ML_Dataset(file_path[:train_num], max_len, gap), ML_Dataset(file_path[train_num:], max_len, gap)
 
 if __name__ == '__main__':
