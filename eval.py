@@ -1,3 +1,4 @@
+import pickle
 from model import ML_BART, ML_Classifier
 from transformers import BartConfig
 import argparse
@@ -144,10 +145,20 @@ def main():
 
     _, test_data = load_data(args.data_path, args.train_prop, args.max_len, args.gap, args.shuffle, args.random_seed)
     test_loader = DataLoader(test_data, batch_size=args.batch_size, shuffle=False, num_workers=5)
-
+    ground_truth = []
+    for i in range(len(test_data)):
+        music, hv = test_data[i]
+        ground_truth.append(hv)
+    print(len(ground_truth))
+    ground_truth = np.stack(ground_truth, axis=0)
     output = iteration(test_loader,device,bart,model,args.p,args.t)
     output = output.numpy()
-    np.save('light.npy', output)
+    res = {
+        'ground_truth': ground_truth,
+        'output': output
+    }
+    with open('light_pred.pkl', 'wb') as f:
+        pickle.dump(res, f)
 
 
 if __name__ == '__main__':
