@@ -3,15 +3,13 @@
 
 
 
-## 1. Workflow
+## 1. Model Structure
 
 ![](./img/main.png)
 
 
 
-## 2. Dataset
-
-**Rock Live Dataset**
+## 2. Dataset: RPMC-L
 
 
 
@@ -21,6 +19,8 @@
 
 ### 3. 1 Pre-train
 
+![](./img/pretrain.png)
+
 ```shell
 python pretrain.py --gan
 ```
@@ -29,6 +29,8 @@ python pretrain.py --gan
 
 ### 3.2 Fine-tune
 
+![](./img/finetune.png)
+
 ```shell
 python finetune.py --model_path <pre-training bart path>
 ```
@@ -36,6 +38,8 @@ python finetune.py --model_path <pre-training bart path>
 
 
 ### 3.3 Infer
+
+![](./img/infer.png)
 
 ```shell
 python eval.py --bart_path <fine-tuned bart path > --head_path <classifier head path >
