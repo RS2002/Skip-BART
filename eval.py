@@ -168,3 +168,5 @@ def main():
 
 if __name__ == '__main__':
     main()
+
+    # python eval.py --data_path ../m2l/output/ --cuda_devices 2 --p 0.94 0.9 --t 1.3 1.3 --bart_path ./test/res/pretrain/bart_finetune.pth --head_path ./test/res/pretrain/head_finetune.pth --train_prop 0.9 --h_range 65 --v_range 60 60

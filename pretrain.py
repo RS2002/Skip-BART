@@ -56,7 +56,7 @@ def iteration(data_loader,device,bart,model,discriminator,optim,optim_dis,train=
     mse_list = []
 
     pbar = tqdm.tqdm(data_loader, disable=False)
-    for music, _ in pbar:
+    for music, _, _ in pbar:
         music = music.float().to(device)
 
         # 0. Random Pad
@@ -201,4 +201,8 @@ def main():
 
 
 if __name__ == '__main__':
+    import time
+    start = time.time()
     main()
+    end = time.time()
+    print("Time:", time.strftime("%H:%M:%S", time.gmtime(end - start)))

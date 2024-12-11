@@ -1,3 +1,5 @@
+# python finetune.py --model_path bart_pretrain.pth --data_path ../m2l/output/ --train_prop 0.9 --cuda_devices 2
+
 from model import ML_BART, ML_Classifier
 from transformers import BartConfig, AdamW
 import argparse
@@ -55,7 +57,7 @@ def iteration(data_loader,device,bart,model,optim,train=True):
     v_acc_list = []
 
     pbar = tqdm.tqdm(data_loader, disable=False)
-    for music, light in pbar:
+    for music, light, f_name in pbar:
         music = music.float().to(device)
         light = light.numpy()
 
