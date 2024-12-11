@@ -1,5 +1,3 @@
-# python finetune.py --model_path bart_pretrain.pth --data_path ../m2l/output/ --train_prop 0.9 --cuda_devices 2
-
 from model import ML_BART, ML_Classifier
 from transformers import BartConfig, AdamW
 import argparse
@@ -43,7 +41,7 @@ def get_args():
     return args
 
 
-def iteration(data_loader,device,bart,model,optim,train=True):
+def iteration(data_loader,device,bart,model,optim,train=True,weight=[1.0,1.0]):
     if train:
         torch.set_grad_enabled(True)
         bart.train()
@@ -57,9 +55,10 @@ def iteration(data_loader,device,bart,model,optim,train=True):
     v_acc_list = []
 
     pbar = tqdm.tqdm(data_loader, disable=False)
-    for music, light, f_name in pbar:
+    for music, light, _ in pbar:
         music = music.float().to(device)
         light = light.numpy()
+        rand_word = bart.music_mask
 
         # # 0. Random Pad
         # length = random.randint(0, 300)
@@ -74,10 +73,6 @@ def iteration(data_loader,device,bart,model,optim,train=True):
         light = torch.round(light)
         light = light.long().to(device)
 
-        # print(light[0,:,0])
-        # print(light[0,:,1])
-        # exit()
-
         light_input = torch.zeros_like(light)
         light_input[:,1:,:] = light[:,:-1,:]
         light_input[:,0,:] = light[:,0,:]
@@ -85,13 +80,17 @@ def iteration(data_loader,device,bart,model,optim,train=True):
         # 2. Process Music Emb
         non_pad = (music != pad).to(device)
         batch_size, seq_len, input_dim = music.shape
-        rand_word = torch.randn((batch_size, seq_len, input_dim)).to(device)
-        avg = torch.sum(music * non_pad, dim=1, keepdim=True) / (torch.sum(non_pad, dim=1, keepdim=True) + 1e-8)
-        std = torch.sqrt(torch.sum(((music - avg) ** 2) * non_pad, dim=1, keepdim=True) / (
-                torch.sum(non_pad, dim=1, keepdim=True) + 1e-8))
-        rand_word = (rand_word + avg) * std
-        music[~non_pad.bool()] = rand_word[~non_pad.bool()]
+
+        # rand_word = torch.randn((batch_size, seq_len, input_dim)).to(device)
+        # avg = torch.sum(music * non_pad, dim=1, keepdim=True) / (torch.sum(non_pad, dim=1, keepdim=True) + 1e-8)
+        # std = torch.sqrt(torch.sum(((music - avg) ** 2) * non_pad, dim=1, keepdim=True) / (
+        #         torch.sum(non_pad, dim=1, keepdim=True) + 1e-8))
+        # rand_word = (rand_word + avg) * std
+        # music[~non_pad.bool()] = rand_word[~non_pad.bool()]
+
         attn_mask = non_pad[...,0].float()
+        music[~attn_mask.bool()] = rand_word
+
         attn_mask_light = torch.zeros_like(attn_mask)
         attn_mask_light[:,1:] = attn_mask[:,:-1]
         attn_mask_light[:,0] = attn_mask[:,0]
@@ -113,7 +112,7 @@ def iteration(data_loader,device,bart,model,optim,train=True):
             attn_mask = attn_mask.reshape(batch_size * seq_len)
             loss_h = torch.sum(loss_func(h_hat,h)*attn_mask) / torch.sum(attn_mask)
             loss_v = torch.sum(loss_func(v_hat,v)*attn_mask) / torch.sum(attn_mask)
-            loss = loss_h + loss_v
+            loss = loss_h * weight[0] + loss_v * weight[1]
             optim.zero_grad()
             loss.backward()
             optim.step()
@@ -156,7 +155,7 @@ def main():
     params = set(bart.parameters())| set(model.parameters())
     total_params = sum(p.numel() for p in params if p.requires_grad)
     print('total parameters:', total_params)
-    optim = AdamW(params, lr=args.lr) #, weight_decay=0.01)
+    optim = AdamW(params, lr=args.lr, weight_decay=0.01)
 
     acc_best = 0
     acc_epoch = 0
@@ -166,19 +165,21 @@ def main():
     train_loader = DataLoader(train_data, batch_size=args.batch_size, shuffle=True, num_workers=5)
     test_loader = DataLoader(test_data, batch_size=args.batch_size, shuffle=True, num_workers=5)
 
+    weight = [1.0, 1.0]
     while True:
         j += 1
-        acc_h, acc_v = iteration(train_loader,device,bart,model,optim,train=True)
+        acc_h, acc_v = iteration(train_loader,device,bart,model,optim,train=True,weight=weight)
         log = "Epoch {} | Training Acc_H {:06f} , Acc_V {:06f} | ".format(j, acc_h, acc_v)
         print(log)
         with open("log.txt", 'a') as file:
             file.write(log)
-        acc_h, acc_v = iteration(test_loader,device,bart,model,optim,train=False)
+        acc_h, acc_v = iteration(test_loader,device,bart,model,optim,train=False,weight=weight)
         log = "Test Acc_H {:06f} , Acc_V {:06f} ".format(acc_h, acc_v)
         print(log)
         with open("log.txt", 'a') as file:
             file.write(log + "\n")
         acc = (acc_h + acc_v) / 2
+        weight = [ (acc_v + 1e-8) / (acc + 1e-8), (acc_h + 1e-8) / (acc + 1e-8)]
         if acc >= acc_best:
             torch.save(bart.state_dict(), "bart_finetune.pth")
             torch.save(model.state_dict(), "head_finetune.pth")
@@ -191,4 +192,8 @@ def main():
         print("Converge Epoch {:}".format(acc_epoch))
 
 if __name__ == '__main__':
+    import time
+    start = time.time()
     main()
+    end = time.time()
+    print("Time:", time.strftime("%H:%M:%S", time.gmtime(end - start)))

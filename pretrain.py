@@ -59,6 +59,8 @@ def iteration(data_loader,device,bart,model,discriminator,optim,optim_dis,train=
     for music, _, _ in pbar:
         music = music.float().to(device)
 
+        rand_word = bart.music_mask
+
         # 0. Random Pad
         # length = random.randint(0, 500)
         # music[:, 600 - length:, :] = pad
@@ -66,17 +68,23 @@ def iteration(data_loader,device,bart,model,discriminator,optim,optim_dis,train=
         # 1. Process Music Emb
         non_pad = (music != pad).to(device)
         batch_size, seq_len, input_dim = music.shape
-        rand_word = torch.randn((batch_size, seq_len, input_dim)).to(device)
-        avg = torch.sum(music * non_pad, dim=1, keepdim=True) / (torch.sum(non_pad, dim=1, keepdim=True) + 1e-8)
-        std = torch.sqrt(torch.sum(((music - avg) ** 2) * non_pad, dim=1, keepdim=True) / (
-                torch.sum(non_pad, dim=1, keepdim=True) + 1e-8))
-        rand_word = (rand_word + avg) * std
-        music[~non_pad.bool()] = rand_word[~non_pad.bool()]
+
+        # rand_word = torch.randn((batch_size, seq_len, input_dim)).to(device)
+        # avg = torch.sum(music * non_pad, dim=1, keepdim=True) / (torch.sum(non_pad, dim=1, keepdim=True) + 1e-8)
+        # std = torch.sqrt(torch.sum(((music - avg) ** 2) * non_pad, dim=1, keepdim=True) / (
+        #         torch.sum(non_pad, dim=1, keepdim=True) + 1e-8))
+        # rand_word = (rand_word + avg) * std
+        # music[~non_pad.bool()] = rand_word[~non_pad.bool()]
+
         attn_mask = non_pad[...,0].float()
+        music[~attn_mask.bool()] = rand_word
 
         music_decoder = torch.zeros_like(music)
         music_decoder[:,1:,:] = music[:,:-1,:]
-        music_decoder[:,0,:] = rand_word[:,0,:]
+
+        # music_decoder[:,0,:] = rand_word[:,0,:]
+        music_decoder[:, 0, :] = rand_word
+
         attn_mask_decoder = torch.zeros_like(attn_mask)
         attn_mask_decoder[:,1:] = attn_mask[:,:-1]
         attn_mask_decoder[:,0] = 0
@@ -90,8 +98,12 @@ def iteration(data_loader,device,bart,model,discriminator,optim,optim_dis,train=
         col_indices = torch.randint(0, seq_len, (batch_size, chosen_num_max))
         loss_mask[row_indices[:, :num_ones.max()], col_indices[:, :num_ones.max()]] = 1
         loss_mask[~non_pad[..., 0]] = 0
-        input = copy.deepcopy(music)
-        input[loss_mask.bool()] = rand_word[loss_mask.bool()]
+
+        # input = copy.deepcopy(music)
+        input = music.clone()
+
+        # input[loss_mask.bool()] = rand_word[loss_mask.bool()]
+        input[loss_mask.bool()] = rand_word
 
         # 3. train
         music_hat = model(bart(input,music_decoder,attn_mask,attn_mask_decoder))
@@ -110,7 +122,7 @@ def iteration(data_loader,device,bart,model,discriminator,optim,optim_dis,train=
                 loss_cls = nn.CrossEntropyLoss()
                 non_pad = non_pad.float()
                 music_hat = music_hat * non_pad + rand_word * (1 - non_pad)
-                truth_hat = discriminator(music)
+                truth_hat = discriminator(music.detach())
                 false_hat = discriminator(music_hat.detach())
                 false = torch.zeros(batch_size, dtype=torch.long).to(device)
                 truth = torch.ones(batch_size, dtype=torch.long).to(device)
@@ -163,7 +175,7 @@ def main():
     params = set(bart.parameters())| set(model.parameters())
     total_params = sum(p.numel() for p in params if p.requires_grad)
     print('total parameters:', total_params)
-    optim = AdamW(params, lr=args.lr)#, weight_decay=0.01)
+    optim = AdamW(params, lr=args.lr, weight_decay=0.01)
     optim_dis = AdamW(discriminator.parameters(), lr=args.lr)#, weight_decay=0.01)
 
     best_mse = 1e8
@@ -177,7 +189,7 @@ def main():
 
     while True:
         j += 1
-        mse = iteration(train_loader,device,bart,model,discriminator,optim,optim_dis,train=True,gan=True)
+        mse = iteration(train_loader,device,bart,model,discriminator,optim,optim_dis,train=True,gan=args.gan)
         log = "Epoch {} | Training MSE {:06f} | ".format(j, mse)
         print(log)
         with open("log.txt", 'a') as file:
