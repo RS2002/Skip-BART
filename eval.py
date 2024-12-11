@@ -41,6 +41,9 @@ def get_args():
     parser.add_argument('--bart_path', type=str, default="./bart_finetune.pth")
     parser.add_argument('--head_path', type=str, default="./head_finetune.pth")
 
+    parser.add_argument("--shuffle", action="store_true",default=False)
+    parser.add_argument('--random_seed', type=int, default=42)
+
     args = parser.parse_args()
     return args
 
@@ -49,7 +52,7 @@ def iteration(data_loader,device,bart,model,p,t,h_range=None,v_range=None):
     output = []
 
     pbar = tqdm.tqdm(data_loader, disable=False)
-    for music, gt in pbar:
+    for music, gt, f_name in pbar:
         music = music.float().to(device)
         gt = gt.float().to(device)
         light = torch.zeros_like(gt)
@@ -143,19 +146,21 @@ def main():
     bart.eval()
     model.eval()
 
-    _, test_data = load_data(args.data_path, args.train_prop, args.max_len, args.gap, args.shuffle, args.random_seed)
+    _, test_data = load_data(args.data_path, args.train_prop, args.max_len, args.gap, args.shuffle, args.random_seed, fix_start=0)
     test_loader = DataLoader(test_data, batch_size=args.batch_size, shuffle=False, num_workers=5)
     ground_truth = []
+    f_names = []
     for i in range(len(test_data)):
-        music, hv = test_data[i]
+        music, hv, f_name = test_data[i]
         ground_truth.append(hv)
-    print(len(ground_truth))
+        f_names.append(f_name)
     ground_truth = np.stack(ground_truth, axis=0)
     output = iteration(test_loader,device,bart,model,args.p,args.t)
     output = output.numpy()
     res = {
         'ground_truth': ground_truth,
-        'output': output
+        'output': output,
+        'f_names': f_names
     }
     with open('light_pred.pkl', 'wb') as f:
         pickle.dump(res, f)

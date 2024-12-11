@@ -6,11 +6,12 @@ import numpy as np
 pad = -1000
 
 class ML_Dataset(Dataset):
-    def __init__(self, file_path, max_len = 600, gap = 0):
+    def __init__(self, file_path, max_len = 600, gap = 0, fix_start = None):
         self.file_path = file_path
         self.max_len = int(max_len)
         self.gap = int(gap)
         self.sample_len = self.max_len * (gap + 1)
+        self.fix_start = fix_start
 
     def __len__(self):
         return len(self.file_path)
@@ -44,7 +45,10 @@ class ML_Dataset(Dataset):
 
 
         if music_len > self.sample_len:
-            start_index = np.random.randint(0, music_len - self.sample_len + 1)
+            if self.fix_start:
+                start_index = self.fix_start
+            else:
+                start_index = np.random.randint(0, music_len - self.sample_len + 1)
             music = music[start_index:start_index+self.sample_len, :]
             h = h[start_index:start_index+self.sample_len]
             v = v[start_index:start_index+self.sample_len]
@@ -59,45 +63,33 @@ class ML_Dataset(Dataset):
         h = h[::(self.gap+1)]
         v = v[::(self.gap+1)]
         hv = np.stack([h, v], axis=1)
-        return music, hv
 
-def load_data(root_path, train_prop = 0.9, max_len = 600, gap = 0, shuffle = False, random_seed = 42):
+        f_name = self.file_path[index].split('/')[-1]
+        return music, hv, f_name
+
+def load_data(root_path, train_prop = 0.9, max_len = 600, gap = 0, shuffle = False, random_seed = 42, fix_start = None):
     file_path = []
     for dirpath, _, filenames in os.walk(root_path):
         for file in filenames:
             if file[-4:] == ".pkl":
                 file_path.append(os.path.join(dirpath, file))
     if train_prop == 1.0:
-        return ML_Dataset(file_path, max_len, gap)
+        return ML_Dataset(file_path, max_len, gap, fix_start)
     else:
         train_num = round(len(file_path) * train_prop)
         if shuffle:
             np.random.seed(random_seed)
             np.random.shuffle(file_path)
-        return ML_Dataset(file_path[:train_num], max_len, gap), ML_Dataset(file_path[train_num:], max_len, gap)
+        return ML_Dataset(file_path[:train_num], max_len, gap, fix_start), ML_Dataset(file_path[train_num:], max_len, gap, fix_start)
 
 if __name__ == '__main__':
     import matplotlib.pyplot as plt
     # test
-    train_data, test_data = load_data("./test/data/",train_prop=0.5)
+    train_data, test_data = load_data("./test/data/",train_prop=0.5, fix_start=40)
     # print(len(train_data))
     # print(len(test_data))
     # print(train_data[0][0].shape)
     # print(train_data[0][1].shape)
-    for i in range(len(train_data)):
-        print('no.', i)
-        print(train_data[i][0].shape)
-        print(train_data[i][1].shape)
-        h = train_data[i][1][:,0]
-        v = train_data[i][1][:,1]
-        print([x for x in h if x != pad])
-        print(max(h))
-        print([x for x in v if x != pad])
-        print(max(v))
-        plt.plot([x for x in h if x != pad])
-        plt.show()
-        # plt.hist(v, bins=np.arange(256))
-        plt.plot([x for x in v if x != pad])
-        plt.show()
+    print(train_data[0][2])
         
     
