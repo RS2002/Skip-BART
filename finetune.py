@@ -60,7 +60,7 @@ def iteration(data_loader,device,bart,model,optim,train=True):
         light = light.numpy()
 
         # # 0. Random Pad
-        # length = random.randint(0, 500)
+        # length = random.randint(0, 300)
         # music[:, 600 - length:, :] = pad
         # light[:, 600 - length:, :] = pad
 
