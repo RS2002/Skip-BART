@@ -43,7 +43,7 @@ def get_args():
     return args
 
 
-def iteration(data_loader,device,bart,model,optim,train=True):
+def iteration(data_loader,device,bart,model,optim,train=True,weight=[1.0,1.0]):
     if train:
         torch.set_grad_enabled(True)
         bart.train()
@@ -113,7 +113,7 @@ def iteration(data_loader,device,bart,model,optim,train=True):
             attn_mask = attn_mask.reshape(batch_size * seq_len)
             loss_h = torch.sum(loss_func(h_hat,h)*attn_mask) / torch.sum(attn_mask)
             loss_v = torch.sum(loss_func(v_hat,v)*attn_mask) / torch.sum(attn_mask)
-            loss = loss_h + loss_v
+            loss = loss_h * weight[0] + loss_v * weight[1]
             optim.zero_grad()
             loss.backward()
             optim.step()
@@ -167,19 +167,21 @@ def main():
     train_loader = DataLoader(train_data, batch_size=args.batch_size, shuffle=True, num_workers=5)
     test_loader = DataLoader(test_data, batch_size=args.batch_size, shuffle=True, num_workers=5)
 
+    weight = [1.0, 1.0]
     while True:
         j += 1
-        acc_h, acc_v = iteration(train_loader,device,bart,model,optim,train=True)
+        acc_h, acc_v = iteration(train_loader,device,bart,model,optim,train=True,weight=weight)
         log = "Epoch {} | Training Acc_H {:06f} , Acc_V {:06f} | ".format(j, acc_h, acc_v)
         print(log)
         with open("log.txt", 'a') as file:
             file.write(log)
-        acc_h, acc_v = iteration(test_loader,device,bart,model,optim,train=False)
+        acc_h, acc_v = iteration(test_loader,device,bart,model,optim,train=False,weight=weight)
         log = "Test Acc_H {:06f} , Acc_V {:06f} ".format(acc_h, acc_v)
         print(log)
         with open("log.txt", 'a') as file:
             file.write(log + "\n")
         acc = (acc_h + acc_v) / 2
+        weight = [ (acc_v + 1e-8) / (acc + 1e-8), (acc_h + 1e-8) / (acc + 1e-8)]
         if acc >= acc_best:
             torch.save(bart.state_dict(), "bart_finetune.pth")
             torch.save(model.state_dict(), "head_finetune.pth")
