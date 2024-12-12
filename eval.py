@@ -53,8 +53,6 @@ def iteration(data_loader,device,bart,model,p,t,h_range=None,v_range=None):
 
     pbar = tqdm.tqdm(data_loader, disable=False)
     for music, gt, f_name in pbar:
-        rand_word = bart.music_mask
-
         music = music.float().to(device)
         gt = gt.float().to(device)
         light = torch.zeros_like(gt)
@@ -69,7 +67,6 @@ def iteration(data_loader,device,bart,model,p,t,h_range=None,v_range=None):
         attn_mask_light = torch.zeros_like(attn_mask)
         attn_mask_light[:,1:] = attn_mask[:,:-1]
         attn_mask_light[:,0] = attn_mask[:,0]
-        music[~attn_mask.bool()] = rand_word
 
         batch_size, seq_len, _ = music.shape
         result = torch.zeros([batch_size, seq_len, 2])

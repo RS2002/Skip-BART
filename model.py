@@ -69,9 +69,6 @@ class ML_BART(nn.Module):
         self.bart = BartModel(bartconfig)
         self.pretrain = pretrain
 
-        self.music_mask = nn.Parameter(torch.randn([d_model]))
-
-
     def forward(self, x_encoder, x_decoder, attn_mask_encoder = None, attn_mask_decoder = None):
         emb_encoder = x_encoder
 
@@ -149,4 +146,3 @@ class Token_Classifier(nn.Module):
     def forward(self, x):
         x = self.classifier(x)
         return x
-
