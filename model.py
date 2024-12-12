@@ -2,6 +2,7 @@ from transformers import BartModel
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import torch.nn.init as init
 
 
 class MLP(nn.Module):
@@ -92,6 +93,13 @@ class ML_BART(nn.Module):
         y = y.last_hidden_state
         return y
 
+    def reset_decoder(self):
+        for name, param in self.bart.decoder.named_parameters():
+            if param.dim() >= 2:
+                init.xavier_uniform_(param)
+            elif param.dim() == 1:
+                init.zeros_(param)
+
 
 class ML_Classifier(nn.Module):
     def __init__(self, hidden_dim = 512, class_num = [180,256]):
@@ -141,3 +149,4 @@ class Token_Classifier(nn.Module):
     def forward(self, x):
         x = self.classifier(x)
         return x
+

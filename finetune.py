@@ -148,6 +148,7 @@ def main():
 
     if args.model_path is not None:
         bart.load_state_dict(torch.load(args.model_path))
+        bart.reset_decoder()
         print("Load Model from ", args.model_path)
     else:
         print("No Pre-train Model")
@@ -156,6 +157,7 @@ def main():
     total_params = sum(p.numel() for p in params if p.requires_grad)
     print('total parameters:', total_params)
     optim = AdamW(params, lr=args.lr, weight_decay=0.01)
+
 
     acc_best = 0
     acc_epoch = 0
