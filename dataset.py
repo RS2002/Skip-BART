@@ -6,6 +6,8 @@ import random
 
 pad = -1000
 
+SELECTED_FEATURE = 'mel_spectrogram'
+
 class ML_Dataset(Dataset):
     def __init__(self, file_path, max_len = 600, gap = 0, fix_start = None):
         self.file_path = file_path
@@ -82,8 +84,13 @@ class Pretrain_Dataset(Dataset):
     def __getitem__(self, index):
         with open(self.file_path[index], 'rb') as file:
             data = pickle.load(file)
-        music_ori = data['music']
+        music_ori = data[SELECTED_FEATURE].T
         music_len = music_ori.shape[0]
+        
+        # music_len = int(music_len // 4 * 4)
+        # music_ori = music_ori[:music_len, :]
+        # music_ori = music_ori.reshape(music_len//4, music_ori.shape[1]*4)
+        # music_len = music_ori.shape[0]
 
         if music_len >= self.sample_len:
             start_index = np.random.randint(0, music_len - self.sample_len + 1)
@@ -104,8 +111,15 @@ class Pretrain_Dataset(Dataset):
             neg_index = random.randint(0, self.num - 1)
         with open(self.file_path[neg_index], 'rb') as file:
             data = pickle.load(file)
-        music_ori = data['music']
+        music_ori = data[SELECTED_FEATURE].T
         music_len = music_ori.shape[0]
+        
+        # music_len = int(music_len // 4 * 4)
+        # music_ori = music_ori[:music_len, :]
+        # music_ori = music_ori.reshape(music_len//4, music_ori.shape[1]*4)
+        # music_len = music_ori.shape[0]
+            
+
         if music_len >= self.sample_len:
             start_index = np.random.randint(0, music_len - self.sample_len + 1)
             neg = music_ori[start_index:start_index+self.sample_len, :]
@@ -146,11 +160,11 @@ def load_pretrain(root_path, train_prop = 0.9, max_len = 600, gap = 0):
 if __name__ == '__main__':
     import matplotlib.pyplot as plt
     # test
-    train_data, test_data = load_data("./test/data/",train_prop=0.5, fix_start=40)
+    train_data, test_data = load_pretrain("./data/audio_features",train_prop=0.5)
     # print(len(train_data))
     # print(len(test_data))
     # print(train_data[0][0].shape)
     # print(train_data[0][1].shape)
-    print(train_data[0][2])
+    print(train_data[0][0].sum())
         
     
