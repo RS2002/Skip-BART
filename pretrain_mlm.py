@@ -1,5 +1,7 @@
+import datetime
+import os
 from model import ML_BART, Token_Classifier, Sequence_Classifier
-from transformers import BartConfig, AdamW
+from transformers import BartConfig
 import argparse
 import tqdm
 import torch
@@ -10,13 +12,14 @@ from dataset import load_data
 import random
 import copy
 from sklearn.model_selection import train_test_split
+from torch.optim import AdamW
 
 pad = -1000
 
 def get_args():
     parser = argparse.ArgumentParser(description='')
 
-    parser.add_argument("--music_dim", type=int, default=512)
+    parser.add_argument("--music_dim", type=int, default=128)
     parser.add_argument("--light_dim", type=int, nargs='+', default=[180,256])
 
     parser.add_argument('--layers', type=int, default=6)
@@ -140,6 +143,11 @@ def main():
         device_name = "cpu"
     device = torch.device(device_name)
 
+    date_str = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+    date_str += '_MLM'
+    # mkdir results/{date_str}
+    os.makedirs("results/{}".format(date_str), exist_ok=True)
+
     bartconfig = BartConfig(
         max_position_embeddings = args.max_len,
         encoder_layers = args.layers,
@@ -163,8 +171,8 @@ def main():
     params = set(bart.parameters())| set(model.parameters())
     total_params = sum(p.numel() for p in params if p.requires_grad)
     print('total parameters:', total_params)
-    optim = AdamW(params, lr=args.lr)#, weight_decay=0.01)
-    optim_dis = AdamW(discriminator.parameters(), lr=args.lr)#, weight_decay=0.01)
+    optim = AdamW(params, lr=args.lr)
+    optim_dis = AdamW(discriminator.parameters(), lr=args.lr)
 
     best_mse = 1e8
     mse_epoch = 0
@@ -180,17 +188,17 @@ def main():
         mse = iteration(train_loader,device,bart,model,discriminator,optim,optim_dis,train=True,gan=True)
         log = "Epoch {} | Training MSE {:06f} | ".format(j, mse)
         print(log)
-        with open("log.txt", 'a') as file:
+        with open("results/{}/log.txt".format(date_str), 'a') as file:
             file.write(log)
         mse = iteration(test_loader,device,bart,model,discriminator,optim,optim_dis,train=False,gan=args.gan)
         log = "Testing MSE {:06f}".format(mse)
         print(log)
-        with open("log.txt", 'a') as file:
+        with open("results/{}/log.txt".format(date_str), 'a') as file:
             file.write(log + "\n")
         if mse <= best_mse:
-            torch.save(bart.state_dict(), "bart_pretrain.pth")
-            torch.save(model.state_dict(), "head_pretrain.pth")
-            torch.save(discriminator.state_dict(), "discriminator.pth")
+            torch.save(bart.state_dict(), "results/{}/bart_pretrain.pth".format(date_str))
+            torch.save(model.state_dict(), "results/{}/head_pretrain.pth".format(date_str))
+            torch.save(discriminator.state_dict(), "results/{}/discriminator.pth".format(date_str))
             best_mse = mse
             mse_epoch = 0
         else:
@@ -206,3 +214,5 @@ if __name__ == '__main__':
     main()
     end = time.time()
     print("Time:", time.strftime("%H:%M:%S", time.gmtime(end - start)))
+
+    # python pretrain_mlm.py --data_path /mnt/disk/dian/m2l_data/ --train_prop 0.9

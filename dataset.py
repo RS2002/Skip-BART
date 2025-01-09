@@ -8,29 +8,40 @@ pad = -1000
 
 SELECTED_FEATURE = 'mel_spectrogram'
 
+AUDIO_FOLDER = "output_mel"
+LIGHT_FOLDER = "output"
+
 class ML_Dataset(Dataset):
-    def __init__(self, file_path, max_len = 600, gap = 0, fix_start = None):
-        self.file_path = file_path
+    def __init__(self, root_path, file_names, max_len = 600, gap = 0, fix_start = None):
+        self.root_path = root_path
+        self.file_names = file_names
         self.max_len = int(max_len)
         self.gap = int(gap)
         self.sample_len = self.max_len * (gap + 1)
         self.fix_start = fix_start
 
     def __len__(self):
-        return len(self.file_path)
+        return len(self.file_names)
 
     def __getitem__(self, index):
-        with open(self.file_path[index], 'rb') as file:
-            data = pickle.load(file)
-        music = data['music']
+        with open(os.path.join(self.root_path, AUDIO_FOLDER, self.file_names[index]), 'rb') as file:
+            audio_data = pickle.load(file)
+        with open(os.path.join(self.root_path, LIGHT_FOLDER, self.file_names[index]), 'rb') as file:
+            light_data = pickle.load(file)
+        music = audio_data[SELECTED_FEATURE].T
+        music = music[::4, :]
         music_len = music.shape[0]
 
         # use average value as light
-        sample = data['sample']
-        light = data['light']
+        # sample = data['sample']
+        light = light_data['light']
+        light_len = len(light)
 
-        h = [light[int(i)][60][0] for i in sample]
-        v = [light[int(i)][0][1] for i in sample]
+        # align the length of light and music
+        sample = np.linspace(0, light_len-1, music_len)
+        
+        h = [light[min(round(i), light_len-1)][60][0] for i in sample]
+        v = [light[min(round(i), light_len-1)][0][1] for i in sample]
         h = np.array(h)
         # print('h shape', h.shape)
         v = np.array(v)
@@ -67,7 +78,7 @@ class ML_Dataset(Dataset):
         v = v[::(self.gap+1)]
         hv = np.stack([h, v], axis=1)
 
-        f_name = self.file_path[index].split('/')[-1]
+        f_name = self.file_names[index]
         return music, hv, f_name
 
 class Pretrain_Dataset(Dataset):
@@ -85,12 +96,8 @@ class Pretrain_Dataset(Dataset):
         with open(self.file_path[index], 'rb') as file:
             data = pickle.load(file)
         music_ori = data[SELECTED_FEATURE].T
+        music_ori = music_ori[::4, :]
         music_len = music_ori.shape[0]
-        
-        # music_len = int(music_len // 4 * 4)
-        # music_ori = music_ori[:music_len, :]
-        # music_ori = music_ori.reshape(music_len//4, music_ori.shape[1]*4)
-        # music_len = music_ori.shape[0]
 
         if music_len >= self.sample_len:
             start_index = np.random.randint(0, music_len - self.sample_len + 1)
@@ -112,13 +119,8 @@ class Pretrain_Dataset(Dataset):
         with open(self.file_path[neg_index], 'rb') as file:
             data = pickle.load(file)
         music_ori = data[SELECTED_FEATURE].T
-        music_len = music_ori.shape[0]
-        
-        # music_len = int(music_len // 4 * 4)
-        # music_ori = music_ori[:music_len, :]
-        # music_ori = music_ori.reshape(music_len//4, music_ori.shape[1]*4)
-        # music_len = music_ori.shape[0]
-            
+        music_ori = music_ori[::4, :]
+        music_len = music_ori.shape[0]            
 
         if music_len >= self.sample_len:
             start_index = np.random.randint(0, music_len - self.sample_len + 1)
@@ -130,19 +132,21 @@ class Pretrain_Dataset(Dataset):
         return music, pos, neg
 
 def load_data(root_path, train_prop = 0.9, max_len = 600, gap = 0, shuffle = False, random_seed = 42, fix_start = None):
-    file_path = []
-    for dirpath, _, filenames in os.walk(root_path):
+    audio_path = os.path.join(root_path, AUDIO_FOLDER)
+    # light_path = os.path.join(root_path, LIGHT_FOLDER)
+    file_names = []
+    for dirpath, _, filenames in os.walk(audio_path):
         for file in filenames:
             if file[-4:] == ".pkl":
-                file_path.append(os.path.join(dirpath, file))
+                file_names.append(file)
     if train_prop == 1.0:
-        return ML_Dataset(file_path, max_len, gap, fix_start)
+        return ML_Dataset(root_path, file_names, max_len, gap, fix_start)
     else:
-        train_num = round(len(file_path) * train_prop)
+        train_num = round(len(root_path) * train_prop)
         if shuffle:
             np.random.seed(random_seed)
-            np.random.shuffle(file_path)
-        return ML_Dataset(file_path[:train_num], max_len, gap, fix_start), ML_Dataset(file_path[train_num:], max_len, gap, fix_start)
+            np.random.shuffle(file_names)
+        return ML_Dataset(root_path,file_names[:train_num], max_len, gap, fix_start), ML_Dataset(root_path, file_names[train_num:], max_len, gap, fix_start)
 
 def load_pretrain(root_path, train_prop = 0.9, max_len = 600, gap = 0):
     file_path = []
@@ -160,11 +164,11 @@ def load_pretrain(root_path, train_prop = 0.9, max_len = 600, gap = 0):
 if __name__ == '__main__':
     import matplotlib.pyplot as plt
     # test
-    train_data, test_data = load_pretrain("./data/audio_features",train_prop=0.5)
+    train_data, test_data = load_data("/mnt/disk/dian/m2l_data/",train_prop=0.5)
     # print(len(train_data))
     # print(len(test_data))
     # print(train_data[0][0].shape)
     # print(train_data[0][1].shape)
-    print(train_data[0][0].sum())
+    print(train_data[0][0].shape)
         
     

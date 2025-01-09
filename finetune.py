@@ -1,7 +1,7 @@
 # python finetune.py --model_path bart_pretrain.pth --data_path ../m2l/output/ --train_prop 0.9 --cuda_devices 2
 
 from model import ML_BART, ML_Classifier
-from transformers import BartConfig, AdamW
+from transformers import BartConfig
 import argparse
 import tqdm
 import torch
@@ -10,13 +10,14 @@ import torch.nn as nn
 import numpy as np
 from dataset import load_data
 import random
+from torch.optim import AdamW
 
 pad = -1000
 
 def get_args():
     parser = argparse.ArgumentParser(description='')
 
-    parser.add_argument("--music_dim", type=int, default=512)
+    parser.add_argument("--music_dim", type=int, default=128)
     parser.add_argument("--light_dim", type=int, nargs='+', default=[180,256])
 
     parser.add_argument('--layers', type=int, default=6)
@@ -127,6 +128,11 @@ def main():
     else:
         device_name = "cpu"
     device = torch.device(device_name)
+    
+    date_str = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+    date_str += '_MATCH'
+    # mkdir results/{date_str}
+    os.makedirs("results/{}".format(date_str), exist_ok=True)
 
     bartconfig = BartConfig(
         max_position_embeddings = args.max_len,
@@ -147,7 +153,7 @@ def main():
         model = nn.DataParallel(model, device_ids=cuda_devices)
 
     if args.model_path is not None:
-        bart.load_state_dict(torch.load(args.model_path))
+        bart.load_state_dict(torch.load(args.model_path, weights_only=True))
         print("Load Model from ", args.model_path)
         bart.reset_decoder()
     else:
@@ -174,20 +180,20 @@ def main():
         acc_h, acc_v, loss = iteration(train_loader,device,bart,model,optim,train=True,weight=weight)
         log = "Epoch {} | Training Acc_H {:06f} , Acc_V {:06f} , Loss {:} | ".format(j, acc_h, acc_v, loss)
         print(log)
-        with open("log.txt", 'a') as file:
+        with open("results/{}/log.txt".format(date_str), 'a') as file:
             file.write(log)
         acc_h, acc_v, loss = iteration(test_loader,device,bart,model,optim,train=False,weight=weight)
         log = "Test Acc_H {:06f} , Acc_V {:06f} , Loss {:} ".format(acc_h, acc_v, loss)
         print(log)
-        with open("log.txt", 'a') as file:
+        with open("results/{}/log.txt".format(date_str), 'a') as file:
             file.write(log + "\n")
         acc = (acc_h + acc_v) / 2
         weight = [ (acc_v + 1e-8) / (acc + 1e-8), (acc_h + 1e-8) / (acc + 1e-8)]
 
         if j > args.min_epoch:
             if acc >= acc_best or loss <= loss_best:
-                torch.save(bart.state_dict(), "bart_finetune.pth")
-                torch.save(model.state_dict(), "head_finetune.pth")
+                torch.save(bart.state_dict(), "results/{}/bart_finetune.pth".format(date_str), weights_only=True)
+                torch.save(model.state_dict(), "results/{}/head_finetune.pth".format(date_str), weights_only=True)
 
             if acc >= acc_best:
                 acc_best = acc
@@ -210,3 +216,5 @@ if __name__ == '__main__':
     main()
     end = time.time()
     print("Time:", time.strftime("%H:%M:%S", time.gmtime(end - start)))
+
+    # python finetune.py --model_path results/2025-01-09-18-37-42_MATCH_ok/bart_pretrain.pth --train_prop 0.9 --cuda_devices 2 --data_path /mnt/disk/dian/m2l_data/

@@ -1,5 +1,7 @@
+import datetime
+import os
 from model import ML_BART, Sequence_Classifier, Token_Classifier
-from transformers import BartConfig, AdamW
+from transformers import BartConfig
 import argparse
 import tqdm
 import torch
@@ -9,13 +11,14 @@ import numpy as np
 from dataset import load_pretrain
 import copy
 import random
+from torch.optim import AdamW
 
 pad = -1000
 
 def get_args():
     parser = argparse.ArgumentParser(description='')
 
-    parser.add_argument("--music_dim", type=int, default=512)
+    parser.add_argument("--music_dim", type=int, default=128)
     parser.add_argument("--light_dim", type=int, nargs='+', default=[180,256])
 
     parser.add_argument('--layers', type=int, default=6)
@@ -137,6 +140,11 @@ def main():
         device_name = "cpu"
     device = torch.device(device_name)
 
+    date_str = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+    date_str += '_MATCH'
+    # mkdir results/{date_str}
+    os.makedirs("results/{}".format(date_str), exist_ok=True)
+
     bartconfig = BartConfig(
         max_position_embeddings = args.max_len,
         encoder_layers = args.layers,
@@ -174,16 +182,16 @@ def main():
         acc = iteration(train_loader,device,bart,model,optim,train=True)
         log = "Epoch {} | Training Acc {:06f} | ".format(j, acc)
         print(log)
-        with open("log.txt", 'a') as file:
+        with open("results/{}/log.txt".format(date_str), 'a') as file:
             file.write(log)
         acc = iteration(test_loader,device,bart,model,optim,train=False)
         log = "Testing Acc {:06f}".format(acc)
         print(log)
-        with open("log.txt", 'a') as file:
+        with open("results/{}/log.txt".format(date_str), 'a') as file:
             file.write(log + "\n")
         if acc >= best_acc:
-            torch.save(bart.state_dict(), "bart_pretrain.pth")
-            torch.save(model.state_dict(), "head_pretrain.pth")
+            torch.save(bart.state_dict(), "results/{}/bart_pretrain.pth".format(date_str))
+            torch.save(model.state_dict(), "results/{}/head_pretrain.pth".format(date_str))
             best_acc = acc
             acc_epoch = 0
         else:
@@ -199,3 +207,5 @@ if __name__ == '__main__':
     main()
     end = time.time()
     print("Time:", time.strftime("%H:%M:%S", time.gmtime(end - start)))
+
+    # python pretrain_match.py --data_path /mnt/disk/dian/m2l_data/output_mel/ --train_prop 0.9
