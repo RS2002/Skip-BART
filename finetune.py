@@ -1,5 +1,7 @@
 # python finetune.py --model_path bart_pretrain.pth --data_path ../m2l/output/ --train_prop 0.9 --cuda_devices 2
 
+import datetime
+import os
 from model import ML_BART, ML_Classifier
 from transformers import BartConfig
 import argparse
@@ -130,7 +132,7 @@ def main():
     device = torch.device(device_name)
     
     date_str = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
-    date_str += '_MATCH'
+    date_str += '_FINETUNE'
     # mkdir results/{date_str}
     os.makedirs("results/{}".format(date_str), exist_ok=True)
 
@@ -192,8 +194,8 @@ def main():
 
         if j > args.min_epoch:
             if acc >= acc_best or loss <= loss_best:
-                torch.save(bart.state_dict(), "results/{}/bart_finetune.pth".format(date_str), weights_only=True)
-                torch.save(model.state_dict(), "results/{}/head_finetune.pth".format(date_str), weights_only=True)
+                torch.save(bart.state_dict(), "results/{}/bart_finetune.pth".format(date_str))
+                torch.save(model.state_dict(), "results/{}/head_finetune.pth".format(date_str))
 
             if acc >= acc_best:
                 acc_best = acc
