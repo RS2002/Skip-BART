@@ -15,7 +15,7 @@ pad = -1000
 def get_args():
     parser = argparse.ArgumentParser(description='')
 
-    parser.add_argument("--music_dim", type=int, default=512)
+    parser.add_argument("--music_dim", type=int, default=128)
     parser.add_argument("--light_dim", type=int, nargs='+', default=[180,256])
 
     parser.add_argument("--p", type=float, nargs='+', default=[0.9,0.9])
@@ -139,8 +139,8 @@ def main():
         bart = nn.DataParallel(bart, device_ids=cuda_devices)
         model = nn.DataParallel(model, device_ids=cuda_devices)
 
-    bart.load_state_dict(torch.load(args.bart_path))
-    model.load_state_dict(torch.load(args.head_path))
+    bart.load_state_dict(torch.load(args.bart_path, weights_only=True))
+    model.load_state_dict(torch.load(args.head_path, weights_only=True))
 
     torch.set_grad_enabled(False)
     bart.eval()
@@ -162,11 +162,12 @@ def main():
         'output': output,
         'f_names': f_names
     }
-    with open('light_pred.pkl', 'wb') as f:
+    info = f'h_range={args.h_range}, v_range={args.v_range}, p={args.p}, t={args.t}'
+    with open(f'no_upload/res/light_pred_{info}.pkl', 'wb') as f:
         pickle.dump(res, f)
 
 
 if __name__ == '__main__':
     main()
 
-    # python eval.py --data_path ../m2l/output/ --cuda_devices 2 --p 0.94 0.9 --t 1.3 1.3 --bart_path ./test/res/pretrain/bart_finetune.pth --head_path ./test/res/pretrain/head_finetune.pth --train_prop 0.9 --h_range 65 --v_range 60 60
+    # python eval.py --data_path /mnt/disk/dian/m2l_data/ --cuda_devices 2 --p 0.9 0.9 --t 1.0 1.0 --bart_path ./results/2025-01-09-21-20-54_FINETUNE/bart_finetune.pth --head_path ./results/2025-01-09-21-20-54_FINETUNE/head_finetune.pth --train_prop 0.9 --h_range 65 --v_range 60 60
