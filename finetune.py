@@ -219,4 +219,4 @@ if __name__ == '__main__':
     end = time.time()
     print("Time:", time.strftime("%H:%M:%S", time.gmtime(end - start)))
 
-    # python finetune.py --model_path results/2025-01-09-18-37-42_MATCH_ok/bart_pretrain.pth --train_prop 0.9 --cuda_devices 2 --data_path /mnt/disk/dian/m2l_data/
+    # python finetune.py --model_path results/2025-01-14-17-01-55_MATCH/bart_pretrain.pth --train_prop 0.9 --cuda_devices 0 --data_path /mnt/disk/dian/m2l_data/

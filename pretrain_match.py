@@ -208,4 +208,4 @@ if __name__ == '__main__':
     end = time.time()
     print("Time:", time.strftime("%H:%M:%S", time.gmtime(end - start)))
 
-    # python pretrain_match.py --data_path /mnt/disk/dian/m2l_data/output_mel/ --train_prop 0.9
+    # python pretrain_match.py --data_path /mnt/disk/dian/m2l_data/output_mel/ --train_prop 0.9 --cuda_devices 0

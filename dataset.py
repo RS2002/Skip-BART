@@ -69,9 +69,17 @@ class ML_Dataset(Dataset):
             else:
                 start_index = np.random.randint(0, music_len - self.sample_len + 1)
             music = music[start_index:start_index+self.sample_len, :]
+            # zscore
+            music_mean = np.mean(music)
+            music_std = np.std(music)
+            music = (music - music_mean) / (music_std + 1e-8)
             h = h[start_index:start_index+self.sample_len]
             v = v[start_index:start_index+self.sample_len]
         elif music_len < self.sample_len:
+            # zscore
+            music_mean = np.mean(music)
+            music_std = np.std(music)
+            music = (music - music_mean) / (music_std + 1e-8)
             music = np.concatenate([music, np.zeros([self.sample_len-music_len,music.shape[1]])+pad], axis=0)
             # h_pad = np.min(h) # use minimum value as pad so that it would not influence the norm operation
             h = np.concatenate([h, np.zeros([self.sample_len-music_len])+pad], axis=0)
@@ -104,15 +112,18 @@ class Pretrain_Dataset(Dataset):
         music_ori = music_ori[::4, :]
         music_len = music_ori.shape[0]
 
-        # zscore
-        music_mean = np.mean(music_ori)
-        music_std = np.std(music_ori)
-        music_ori = (music_ori - music_mean) / (music_std + 1e-8)
-
         if music_len >= self.sample_len:
             start_index = np.random.randint(0, music_len - self.sample_len + 1)
             music = music_ori[start_index:start_index+self.sample_len, :]
+            # zscore
+            music_mean = np.mean(music)
+            music_std = np.std(music)
+            music = (music - music_mean) / (music_std + 1e-8)
         else:
+            # zscore
+            music_mean = np.mean(music_ori)
+            music_std = np.std(music_ori)
+            music_ori = (music_ori - music_mean) / (music_std + 1e-8)
             music = np.concatenate([music_ori, np.zeros([self.sample_len-music_len,music_ori.shape[1]])+pad], axis=0)
         music = music[::(self.gap+1)]
 
@@ -132,15 +143,18 @@ class Pretrain_Dataset(Dataset):
         music_ori = music_ori[::4, :]
         music_len = music_ori.shape[0]            
 
-        # zscore
-        music_mean = np.mean(music_ori)
-        music_std = np.std(music_ori)
-        music_ori = (music_ori - music_mean) / (music_std + 1e-8)
-
         if music_len >= self.sample_len:
             start_index = np.random.randint(0, music_len - self.sample_len + 1)
             neg = music_ori[start_index:start_index+self.sample_len, :]
+            # zscore
+            music_mean = np.mean(neg)
+            music_std = np.std(neg)
+            neg = (neg - music_mean) / (music_std + 1e-8)
         else:
+            # zscore
+            music_mean = np.mean(music_ori)
+            music_std = np.std(music_ori)
+            music_ori = (music_ori - music_mean) / (music_std + 1e-8)
             neg = np.concatenate([music_ori, np.zeros([self.sample_len-music_len,music_ori.shape[1]])+pad], axis=0)
         neg = neg[::(self.gap+1)]
 
