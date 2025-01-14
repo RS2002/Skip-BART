@@ -6,7 +6,7 @@ import random
 
 pad = -1000
 
-SELECTED_FEATURE = 'mel_spectrogram'
+SELECTED_FEATURE = 'mel_spectrogram_db'
 
 AUDIO_FOLDER = "output_mel"
 LIGHT_FOLDER = "output"
@@ -31,6 +31,11 @@ class ML_Dataset(Dataset):
         music = audio_data[SELECTED_FEATURE].T
         music = music[::4, :]
         music_len = music.shape[0]
+        
+        # zscore
+        music_mean = np.mean(music)
+        music_std = np.std(music)
+        music = (music - music_mean) / (music_std + 1e-8)
 
         # use average value as light
         # sample = data['sample']
@@ -99,6 +104,11 @@ class Pretrain_Dataset(Dataset):
         music_ori = music_ori[::4, :]
         music_len = music_ori.shape[0]
 
+        # zscore
+        music_mean = np.mean(music_ori)
+        music_std = np.std(music_ori)
+        music_ori = (music_ori - music_mean) / (music_std + 1e-8)
+
         if music_len >= self.sample_len:
             start_index = np.random.randint(0, music_len - self.sample_len + 1)
             music = music_ori[start_index:start_index+self.sample_len, :]
@@ -121,6 +131,11 @@ class Pretrain_Dataset(Dataset):
         music_ori = data[SELECTED_FEATURE].T
         music_ori = music_ori[::4, :]
         music_len = music_ori.shape[0]            
+
+        # zscore
+        music_mean = np.mean(music_ori)
+        music_std = np.std(music_ori)
+        music_ori = (music_ori - music_mean) / (music_std + 1e-8)
 
         if music_len >= self.sample_len:
             start_index = np.random.randint(0, music_len - self.sample_len + 1)
