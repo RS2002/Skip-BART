@@ -5,7 +5,7 @@
 
 ## 1. Model Structure
 
-![](./img/main.png)
+![](./img/model.png)
 
 
 

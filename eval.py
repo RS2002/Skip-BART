@@ -36,7 +36,7 @@ def get_args():
     parser.add_argument('--converge_epoch', type=int, default=30)
 
     parser.add_argument('--data_path', type=str, default="./discard/test/data")
-    parser.add_argument('--train_prop', type=float, default=0.5)
+    parser.add_argument('--train_prop', type=float, default=0.9)
 
     parser.add_argument('--bart_path', type=str, default="./bart_finetune.pth")
     parser.add_argument('--head_path', type=str, default="./head_finetune.pth")
