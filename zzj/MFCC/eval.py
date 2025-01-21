@@ -9,7 +9,6 @@ from torch.utils.data import DataLoader
 import torch.nn as nn
 import numpy as np
 from dataset import load_data
-from no_upload.show_results import show_results
 from util import sampling
 
 pad = -1000
@@ -38,7 +37,7 @@ def get_args():
     parser.add_argument('--converge_epoch', type=int, default=30)
 
     parser.add_argument('--data_path', type=str, default="./discard/test/data")
-    parser.add_argument('--train_prop', type=float, default=0.5)
+    parser.add_argument('--train_prop', type=float, default=0.9)
 
     parser.add_argument('--bart_path', type=str, default="./bart_finetune.pth")
     parser.add_argument('--head_path', type=str, default="./head_finetune.pth")
@@ -65,6 +64,15 @@ def iteration(data_loader,device,bart,model,p,t,h_range=None,v_range=None):
         light = light.long()
 
         non_pad = (music != pad).to(device)
+        batch_size, seq_len, input_dim = music.shape
+        rand_word = torch.randn((batch_size, seq_len, input_dim)).to(device)
+        avg = torch.sum(music * non_pad, dim=1, keepdim=True) / (torch.sum(non_pad, dim=1, keepdim=True) + 1e-8)
+        std = torch.sqrt(torch.sum(((music - avg) ** 2) * non_pad, dim=1, keepdim=True) / (
+                torch.sum(non_pad, dim=1, keepdim=True) + 1e-8))
+        rand_word = (rand_word + avg) * std
+        # rand_word = torch.clip(rand_word, 0, 1)
+        # music = (music - avg) / (std + 1e-8)
+        music[~non_pad.bool()] = rand_word[~non_pad.bool()]
         attn_mask = non_pad[...,0].float()
         attn_mask_light = torch.zeros_like(attn_mask)
         attn_mask_light[:,1:] = attn_mask[:,:-1]
@@ -170,10 +178,9 @@ def main():
     with open(os.path.join(folder_path, f'light_pred_{info}.pkl'), 'wb') as f:
         pickle.dump(res, f)
 
-    show_results(os.path.join(folder_path, f'light_pred_{info}.pkl'))
 
 
 if __name__ == '__main__':
     main()
 
-    # python eval.py --data_path /mnt/disk/dian/m2l_data/ --cuda_devices 0 --p 0.9 0.9 --t 0.9 0.9 --bart_path results/2025-01-15-10-02-24_FINETUNE/bart_finetune.pth --head_path results/2025-01-15-10-02-24_FINETUNE/head_finetune.pth --train_prop 0.9 --h_range 65 --v_range 60 60
+    # python zzj/MFCC/eval.py --data_path /mnt/disk/dian/m2l_data/ --cuda_devices 2 --p 0.92 0.92 --t 1.2 1.2 --bart_path zzj/MFCC/results/2025-01-20-17-37-14_FINETUNE/bart_finetune.pth --head_path zzj/MFCC/results/2025-01-20-17-37-14_FINETUNE/head_finetune.pth --train_prop 0.9 --h_range 65 --v_range 60 60

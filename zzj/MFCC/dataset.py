@@ -5,11 +5,12 @@ import numpy as np
 import random
 
 pad = -1000
-
-SELECTED_FEATURE = 'mel_spectrogram_db'
-
+SELECTED_FEATURE = 'mfcc'
 AUDIO_FOLDER = "output_mel"
 LIGHT_FOLDER = "output"
+
+min_db = -80.0
+max_db = 0.0
 
 class ML_Dataset(Dataset):
     def __init__(self, root_path, file_names, max_len = 600, gap = 0, fix_start = None):
@@ -31,37 +32,25 @@ class ML_Dataset(Dataset):
         music = audio_data[SELECTED_FEATURE].T
         music = music[::4, :]
         music_len = music.shape[0]
-        
-        # # zscore
-        # music_mean = np.mean(music)
-        # music_std = np.std(music)
-        # music = (music - music_mean) / (music_std + 1e-8)
+        # music = (music - min_db) / (max_db - min_db)
 
         # use average value as light
-        # sample = data['sample']
         light = light_data['light']
         light_len = len(light)
-
         # align the length of light and music
         sample = np.linspace(0, light_len-1, music_len)
-        
         h = [light[min(round(i), light_len-1)][60][0] for i in sample]
         v = [light[min(round(i), light_len-1)][0][1] for i in sample]
         h = np.array(h)
-        # print('h shape', h.shape)
         v = np.array(v)
-        # print('v shape', v.shape)
-
         # set the hue=0 as the average of the hue=1 and hue=179
         h[:,0] = (h[:,1]+h[:,179])//2
         h = np.argmax(h, axis=1)
-
         v[:,0] = 0
         values = np.arange(v.shape[1])
         weighted_sums = np.dot(v, values)
         counts = np.sum(v, axis=1)
         v = np.divide(weighted_sums, counts, out=np.zeros_like(weighted_sums, dtype=float), where=counts != 0)
-
 
         if music_len > self.sample_len:
             if self.fix_start:
@@ -69,21 +58,11 @@ class ML_Dataset(Dataset):
             else:
                 start_index = np.random.randint(0, music_len - self.sample_len + 1)
             music = music[start_index:start_index+self.sample_len, :]
-            # zscore
-            music_mean = np.mean(music)
-            music_std = np.std(music)
-            music = (music - music_mean) / (music_std + 1e-8)
             h = h[start_index:start_index+self.sample_len]
             v = v[start_index:start_index+self.sample_len]
         elif music_len < self.sample_len:
-            # zscore
-            music_mean = np.mean(music)
-            music_std = np.std(music)
-            music = (music - music_mean) / (music_std + 1e-8)
             music = np.concatenate([music, np.zeros([self.sample_len-music_len,music.shape[1]])+pad], axis=0)
-            # h_pad = np.min(h) # use minimum value as pad so that it would not influence the norm operation
             h = np.concatenate([h, np.zeros([self.sample_len-music_len])+pad], axis=0)
-            # v_pad = np.min(v)
             v = np.concatenate([v, np.zeros([self.sample_len-music_len])+pad], axis=0)
 
         music = music[::(self.gap+1)]
@@ -111,19 +90,12 @@ class Pretrain_Dataset(Dataset):
         music_ori = data[SELECTED_FEATURE].T
         music_ori = music_ori[::4, :]
         music_len = music_ori.shape[0]
+        # music_ori = (music_ori - min_db) / (max_db - min_db)
 
         if music_len >= self.sample_len:
             start_index = np.random.randint(0, music_len - self.sample_len + 1)
             music = music_ori[start_index:start_index+self.sample_len, :]
-            # zscore
-            music_mean = np.mean(music)
-            music_std = np.std(music)
-            music = (music - music_mean) / (music_std + 1e-8)
         else:
-            # zscore
-            music_mean = np.mean(music_ori)
-            music_std = np.std(music_ori)
-            music_ori = (music_ori - music_mean) / (music_std + 1e-8)
             music = np.concatenate([music_ori, np.zeros([self.sample_len-music_len,music_ori.shape[1]])+pad], axis=0)
         music = music[::(self.gap+1)]
 
@@ -146,15 +118,7 @@ class Pretrain_Dataset(Dataset):
         if music_len >= self.sample_len:
             start_index = np.random.randint(0, music_len - self.sample_len + 1)
             neg = music_ori[start_index:start_index+self.sample_len, :]
-            # zscore
-            music_mean = np.mean(neg)
-            music_std = np.std(neg)
-            neg = (neg - music_mean) / (music_std + 1e-8)
         else:
-            # zscore
-            music_mean = np.mean(music_ori)
-            music_std = np.std(music_ori)
-            music_ori = (music_ori - music_mean) / (music_std + 1e-8)
             neg = np.concatenate([music_ori, np.zeros([self.sample_len-music_len,music_ori.shape[1]])+pad], axis=0)
         neg = neg[::(self.gap+1)]
 
@@ -189,15 +153,3 @@ def load_pretrain(root_path, train_prop = 0.9, max_len = 600, gap = 0):
         train_num = round(len(file_path) * train_prop)
         np.random.shuffle(file_path)
         return Pretrain_Dataset(file_path[:train_num], max_len, gap), Pretrain_Dataset(file_path[train_num:], max_len, gap)
-
-if __name__ == '__main__':
-    import matplotlib.pyplot as plt
-    # test
-    train_data, test_data = load_data("/mnt/disk/dian/m2l_data/",train_prop=0.5)
-    # print(len(train_data))
-    # print(len(test_data))
-    # print(train_data[0][0].shape)
-    # print(train_data[0][1].shape)
-    print(train_data[0][0].shape)
-        
-    
