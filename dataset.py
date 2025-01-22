@@ -64,7 +64,7 @@ class ML_Dataset(Dataset):
 
 
         if music_len > self.sample_len:
-            if self.fix_start:
+            if self.fix_start is not None:
                 start_index = self.fix_start
             else:
                 start_index = np.random.randint(0, music_len - self.sample_len + 1)

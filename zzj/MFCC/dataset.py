@@ -51,10 +51,12 @@ class ML_Dataset(Dataset):
         weighted_sums = np.dot(v, values)
         counts = np.sum(v, axis=1)
         v = np.divide(weighted_sums, counts, out=np.zeros_like(weighted_sums, dtype=float), where=counts != 0)
-
+        # print(f"\33[92m[music_len: {music_len}, sample_len: {self.sample_len}, fix_start: {self.fix_start}]\33[0m")
         if music_len > self.sample_len:
-            if self.fix_start:
+            # print(f"\33[92m[music_len > sample_len]\33[0m")
+            if self.fix_start is not None:
                 start_index = self.fix_start
+                # print(f"\33[92m[fix start: {start_index}]\33[0m")
             else:
                 start_index = np.random.randint(0, music_len - self.sample_len + 1)
             music = music[start_index:start_index+self.sample_len, :]

@@ -183,4 +183,4 @@ def main():
 if __name__ == '__main__':
     main()
 
-    # python zzj/MFCC/eval.py --data_path /mnt/disk/dian/m2l_data/ --cuda_devices 2 --p 0.92 0.92 --t 1.2 1.2 --bart_path zzj/MFCC/results/2025-01-20-17-37-14_FINETUNE/bart_finetune.pth --head_path zzj/MFCC/results/2025-01-20-17-37-14_FINETUNE/head_finetune.pth --train_prop 0.9 --h_range 65 --v_range 60 60
+    # python zzj/MFCC/eval.py --data_path /mnt/disk/dian/m2l_data/ --cuda_devices 0 --p 0.9 0.93 --t 1.0 1.3 --bart_path zzj/MFCC/results/2025-01-20-17-37-14_FINETUNE/bart_finetune.pth --head_path zzj/MFCC/results/2025-01-20-17-37-14_FINETUNE/head_finetune.pth --train_prop 0.9 --h_range 65 --v_range 60 60
