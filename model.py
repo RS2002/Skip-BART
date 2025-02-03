@@ -1,3 +1,5 @@
+import math
+from torch.ao.nn.quantized import Sigmoid
 from transformers import BartModel
 import torch
 import torch.nn as nn
@@ -6,7 +8,7 @@ import torch.nn.init as init
 
 
 class MLP(nn.Module):
-    def __init__(self, layer_sizes=[64,64,64,1], arl=False, dropout=0.0):
+    def __init__(self, layer_sizes=[64,64,64,1], arl=False, dropout=0.1):
         super().__init__()
         self.arl = arl
         self.attention = nn.Sequential(
@@ -51,32 +53,27 @@ class BART(nn.Module):
         return y
 
     def encode(self, x_encoder, attn_mask_encoder = None):
-        emb_encoder = self.encoder_emb(x_encoder)
+        emb_encoder = x_encoder
         y = self.bart.encoder(inputs_embeds=emb_encoder, attention_mask=attn_mask_encoder, output_hidden_states=False)
         y = y.last_hidden_state
         return y
 
 
 class ML_BART(nn.Module):
-    def __init__(self, bartconfig, class_num = [180,256], pretrain = False):
+    def __init__(self, bartconfig, output_dim=3, pretrain=False):
         super().__init__()
         d_model = bartconfig.d_model
-        self.decoder_emb = nn.ModuleList([
-            nn.Embedding(class_num[0] + 1, d_model),
-            nn.Embedding(class_num[1] + 1, d_model)
-        ])
-        self.decoder_fusion = MLP([d_model*2,d_model])
+        self.decoder_emb = nn.Linear(output_dim, d_model)
         self.bart = BartModel(bartconfig)
         self.pretrain = pretrain
 
-    def forward(self, x_encoder, x_decoder, attn_mask_encoder = None, attn_mask_decoder = None):
+    def forward(self, x_encoder, x_decoder, attn_mask_encoder=None, attn_mask_decoder=None):
         emb_encoder = x_encoder
-
+        
         if self.pretrain:
             emb_decoder = x_decoder
         else:
-            emb_decoder = torch.concatenate([self.decoder_emb[0](x_decoder[...,0]),self.decoder_emb[1](x_decoder[...,1])],dim=-1)
-            emb_decoder = self.decoder_fusion(emb_decoder)
+            emb_decoder = self.decoder_emb(x_decoder)
 
         y = self.bart(inputs_embeds=emb_encoder, decoder_inputs_embeds=emb_decoder,
                       attention_mask=attn_mask_encoder, decoder_attention_mask=attn_mask_decoder,
@@ -85,7 +82,7 @@ class ML_BART(nn.Module):
         return y
 
     def encode(self, x_encoder, attn_mask_encoder = None):
-        emb_encoder = self.encoder_emb(x_encoder)
+        emb_encoder = x_encoder
         y = self.bart.encoder(inputs_embeds=emb_encoder, attention_mask=attn_mask_encoder, output_hidden_states=False)
         y = y.last_hidden_state
         return y
@@ -99,17 +96,20 @@ class ML_BART(nn.Module):
 
 
 class ML_Classifier(nn.Module):
-    def __init__(self, hidden_dim = 512, class_num = [180,256]):
+    def __init__(self, hidden_dim=512):
         super().__init__()
         self.classifier = nn.ModuleList([
-            MLP([hidden_dim,hidden_dim,class_num[0] + 1]),
-            MLP([hidden_dim, hidden_dim, class_num[1] + 1])
+            MLP([hidden_dim, hidden_dim, 2]),
+            MLP([hidden_dim, hidden_dim, 1])
         ])
 
     def forward(self, x):
-        h = self.classifier[0](x)
+        hue = self.classifier[0](x) # [batch_size, 2] 2 for hue_sin, hue_cos
         v = self.classifier[1](x)
-        return h,v
+        # hue_sin, hue_cos = hue[:,0], hue[:,1]
+        # hue = (torch.atan2(hue_sin, hue_cos) * 179 / (2 * math.pi)) % 179
+        # hue = hue.unsqueeze(1)
+        return hue, v
 
 
 class SelfAttention(nn.Module):
@@ -138,11 +138,13 @@ class Sequence_Classifier(nn.Module):
         return res
 
 
-class Token_Classifier(nn.Module):
+class Token_Predictor(nn.Module):
     def __init__(self, hidden_dim=512, class_num=1):
         super().__init__()
         self.classifier = MLP([hidden_dim, (hidden_dim+class_num)//2, class_num])
+        self.sigmoid = nn.Sigmoid()
 
     def forward(self, x):
         x = self.classifier(x)
+        x = self.sigmoid(x)
         return x
