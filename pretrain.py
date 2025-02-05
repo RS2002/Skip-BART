@@ -12,34 +12,40 @@ from dataset import load_pretrain
 import copy
 import random
 from torch.optim import AdamW
+from peft import get_peft_model, LoraConfig
 
 pad = -1000
 
 def get_args():
     parser = argparse.ArgumentParser(description='')
 
-    parser.add_argument("--music_dim", type=int, default=128)
+    parser.add_argument("--music_dim", type=int, default=512)
     parser.add_argument("--light_dim", type=int, nargs='+', default=[180,256])
-
-    parser.add_argument('--layers', type=int, default=6)
-    parser.add_argument('--max_len', type=int, default=600)
     parser.add_argument('--gap', type=int, default=0)
+
+    parser.add_argument('--layers', type=int, default=8)
+    parser.add_argument('--max_len', type=int, default=1024)
     parser.add_argument('--heads', type=int, default=8)
-    parser.add_argument('--attn_hs', type=int, default=128)
+    parser.add_argument('--hs', type=int, default=1024)
+    parser.add_argument('--ffn_dims', type=int, default=2048)
 
     parser.add_argument("--cpu", action="store_true",default=False)
     parser.add_argument("--cuda_devices", type=int, nargs='+', default=[0])
     parser.add_argument('--lr', type=float, default=0.0001)
     parser.add_argument('--batch_size', type=int, default=16)
     parser.add_argument('--converge_epoch', type=int, default=30)
+    parser.add_argument('--min_epoch', type=int, default=50)
 
     parser.add_argument('--data_path', type=str, default="./discard/test/data")
     parser.add_argument('--train_prop', type=float, default=0.9)
 
+    parser.add_argument("--encoder_only", action="store_true",default=False)
+
+
     args = parser.parse_args()
     return args
 
-def iteration(data_loader,device,bart,model_mlm,model_match,discriminator,optim,optim_dis,train=True,gan=True):
+def iteration(data_loader,device,bart,model_mlm,model_match,discriminator,optim,optim_dis,train=True,gan=True,encoder_only=False):
     if train:
         torch.set_grad_enabled(True)
         bart.train()
@@ -57,7 +63,8 @@ def iteration(data_loader,device,bart,model_mlm,model_match,discriminator,optim,
     acc_list = []
     pbar = tqdm.tqdm(data_loader, disable=False)
     for music, pos, neg in pbar:
-        rand = random.random()
+        # rand = random.random()
+        rand = 0.0
         if rand < 0.5:
             music = music.float().to(device)
 
@@ -73,7 +80,6 @@ def iteration(data_loader,device,bart,model_mlm,model_match,discriminator,optim,
             std = torch.sqrt(torch.sum(((music - avg) ** 2) * non_pad, dim=1, keepdim=True) / (
                     torch.sum(non_pad, dim=1, keepdim=True) + 1e-8))
             rand_word = (rand_word + avg) * std
-            rand_word = torch.clip(rand_word, 0, 1)
             music[~non_pad.bool()] = rand_word[~non_pad.bool()]
             attn_mask = non_pad[..., 0].float()
 
@@ -97,7 +103,10 @@ def iteration(data_loader,device,bart,model_mlm,model_match,discriminator,optim,
             input[loss_mask.bool()] = rand_word[loss_mask.bool()]
 
             # 3. train
-            music_hat = model_mlm(bart(input, music_decoder, attn_mask, attn_mask_decoder))
+            if encoder_only:
+                music_hat = model_mlm(bart.encode(input, attn_mask))
+            else:
+                music_hat = model_mlm(bart(input, music_decoder, attn_mask, attn_mask_decoder))
 
             loss_mse = nn.MSELoss(reduction="none")
             loss_mask = loss_mask.unsqueeze(2).repeat(1, 1, input_dim)
@@ -133,8 +142,8 @@ def iteration(data_loader,device,bart,model_mlm,model_match,discriminator,optim,
         else:
             # 1. Process Music Emb
             music = music.float().to(device)
-            length = random.randint(0, 200)
-            music[:, 600 - length:, :] = pad
+            # length = random.randint(0, 200)
+            # music[:, 600 - length:, :] = pad
             non_pad = (music != pad).to(device)
             batch_size, seq_len, input_dim = music.shape
             rand_word = torch.randn((batch_size, seq_len, input_dim)).to(device)
@@ -142,7 +151,6 @@ def iteration(data_loader,device,bart,model_mlm,model_match,discriminator,optim,
             std = torch.sqrt(torch.sum(((music - avg) ** 2) * non_pad, dim=1, keepdim=True) / (
                     torch.sum(non_pad, dim=1, keepdim=True) + 1e-8))
             rand_word = (rand_word + avg) * std
-            rand_word = torch.clip(rand_word, 0, 1)
             music[~non_pad.bool()] = rand_word[~non_pad.bool()]
             attn_mask = non_pad[..., 0].float()
 
@@ -163,14 +171,13 @@ def iteration(data_loader,device,bart,model_mlm,model_match,discriminator,optim,
             pos_decoder[:, 1:, :] = pos[:, :-1, :]
             pos_decoder[:, 0, :] = rand_word[:, 0, :]
             pos = pos_decoder
-            length = random.randint(0, 200)
-            pos[:, 600 - length:, :] = pad
+            # length = random.randint(0, 200)
+            # pos[:, 600 - length:, :] = pad
             non_pad = (pos != pad).to(device)
             avg = torch.sum(pos * non_pad, dim=1, keepdim=True) / (torch.sum(non_pad, dim=1, keepdim=True) + 1e-8)
             std = torch.sqrt(torch.sum(((pos - avg) ** 2) * non_pad, dim=1, keepdim=True) / (
                     torch.sum(non_pad, dim=1, keepdim=True) + 1e-8))
             rand_word = (rand_word + avg) * std
-            rand_word = torch.clip(rand_word, 0, 1)
             pos[~non_pad.bool()] = rand_word[~non_pad.bool()]
             attn_mask_pos = non_pad[..., 0].float()
 
@@ -191,14 +198,13 @@ def iteration(data_loader,device,bart,model_mlm,model_match,discriminator,optim,
             neg_decoder[:, 1:, :] = neg[:, :-1, :]
             neg_decoder[:, 0, :] = rand_word[:, 0, :]
             neg = neg_decoder
-            length = random.randint(0, 200)
-            neg[:, 600 - length:, :] = pad
+            # length = random.randint(0, 200)
+            # neg[:, 600 - length:, :] = pad
             non_pad = (neg != pad).to(device)
             avg = torch.sum(neg * non_pad, dim=1, keepdim=True) / (torch.sum(non_pad, dim=1, keepdim=True) + 1e-8)
             std = torch.sqrt(torch.sum(((neg - avg) ** 2) * non_pad, dim=1, keepdim=True) / (
                     torch.sum(non_pad, dim=1, keepdim=True) + 1e-8))
             rand_word = (rand_word + avg) * std
-            rand_word = torch.clip(rand_word, 0, 1)
             neg[~non_pad.bool()] = rand_word[~non_pad.bool()]
             attn_mask_neg = non_pad[..., 0].float()
 
@@ -270,7 +276,6 @@ def iteration_mlm(data_loader,device,bart,model,discriminator,optim,optim_dis,tr
         std = torch.sqrt(torch.sum(((music - avg) ** 2) * non_pad, dim=1, keepdim=True) / (
                 torch.sum(non_pad, dim=1, keepdim=True) + 1e-8))
         rand_word = (rand_word + avg) * std
-        rand_word = torch.clip(rand_word,0,1)
         music[~non_pad.bool()] = rand_word[~non_pad.bool()]
         attn_mask = non_pad[...,0].float()
 
@@ -294,7 +299,10 @@ def iteration_mlm(data_loader,device,bart,model,discriminator,optim,optim_dis,tr
         input[loss_mask.bool()] = rand_word[loss_mask.bool()]
 
         # 3. train
-        music_hat = model(bart(input,music_decoder,attn_mask,attn_mask_decoder))
+        if encoder_only:
+            music_hat = model(bart.encode(input,attn_mask))
+        else:
+            music_hat = model(bart(input,music_decoder,attn_mask,attn_mask_decoder))
 
         loss_mse = nn.MSELoss(reduction="none")
         loss_mask = loss_mask.unsqueeze(2).repeat(1, 1, input_dim)
@@ -348,8 +356,8 @@ def iteration_match(data_loader,device,bart,model,optim,train=True):
 
         # 1. Process Music Emb
         music = music.float().to(device)
-        length = random.randint(0, 200)
-        music[:, 600 - length:, :] = pad
+        # length = random.randint(0, 200)
+        # music[:, 600 - length:, :] = pad
         non_pad = (music != pad).to(device)
         batch_size, seq_len, input_dim = music.shape
         rand_word = torch.randn((batch_size, seq_len, input_dim)).to(device)
@@ -357,7 +365,6 @@ def iteration_match(data_loader,device,bart,model,optim,train=True):
         std = torch.sqrt(torch.sum(((music - avg) ** 2) * non_pad, dim=1, keepdim=True) / (
                 torch.sum(non_pad, dim=1, keepdim=True) + 1e-8))
         rand_word = (rand_word + avg) * std
-        rand_word = torch.clip(rand_word,0,1)
         music[~non_pad.bool()] = rand_word[~non_pad.bool()]
         attn_mask = non_pad[...,0].float()
 
@@ -380,14 +387,13 @@ def iteration_match(data_loader,device,bart,model,optim,train=True):
         pos_decoder[:,1:,:] = pos[:,:-1,:]
         pos_decoder[:,0,:] = rand_word[:,0,:]
         pos = pos_decoder
-        length = random.randint(0, 200)
-        pos[:, 600 - length:, :] = pad
+        # length = random.randint(0, 200)
+        # pos[:, 600 - length:, :] = pad
         non_pad = (pos != pad).to(device)
         avg = torch.sum(pos * non_pad, dim=1, keepdim=True) / (torch.sum(non_pad, dim=1, keepdim=True) + 1e-8)
         std = torch.sqrt(torch.sum(((pos - avg) ** 2) * non_pad, dim=1, keepdim=True) / (
                 torch.sum(non_pad, dim=1, keepdim=True) + 1e-8))
         rand_word = (rand_word + avg) * std
-        rand_word = torch.clip(rand_word,0,1)
         pos[~non_pad.bool()] = rand_word[~non_pad.bool()]
         attn_mask_pos = non_pad[..., 0].float()
 
@@ -410,14 +416,13 @@ def iteration_match(data_loader,device,bart,model,optim,train=True):
         neg_decoder[:,1:,:] = neg[:,:-1,:]
         neg_decoder[:,0,:] = rand_word[:,0,:]
         neg = neg_decoder
-        length = random.randint(0, 200)
-        neg[:, 600 - length:, :] = pad
+        # length = random.randint(0, 200)
+        # neg[:, 600 - length:, :] = pad
         non_pad = (neg != pad).to(device)
         avg = torch.sum(neg * non_pad, dim=1, keepdim=True) / (torch.sum(non_pad, dim=1, keepdim=True) + 1e-8)
         std = torch.sqrt(torch.sum(((neg - avg) ** 2) * non_pad, dim=1, keepdim=True) / (
                 torch.sum(non_pad, dim=1, keepdim=True) + 1e-8))
         rand_word = (rand_word + avg) * std
-        rand_word = torch.clip(rand_word,0,1)
         neg[~non_pad.bool()] = rand_word[~non_pad.bool()]
         attn_mask_neg = non_pad[..., 0].float()
 
@@ -469,21 +474,36 @@ def main():
     # mkdir results/{date_str}
     os.makedirs("results/{}".format(date_str), exist_ok=True)
 
-    bartconfig = BartConfig(
-        max_position_embeddings = args.max_len,
-        encoder_layers = args.layers,
-        encoder_ffn_dim = args.music_dim,
-        encoder_attention_heads = args.heads,
-        decoder_layers = args.layers,
-        decoder_ffn_dim = args.music_dim,
-        decoder_attention_heads = args.heads,
-        d_model = args.music_dim
-    )
+    # bartconfig = BartConfig(
+    #     max_position_embeddings = args.max_len,
+    #     encoder_layers = args.layers,
+    #     encoder_ffn_dim = args.music_dim,
+    #     encoder_attention_heads = args.heads,
+    #     decoder_layers = args.layers,
+    #     decoder_ffn_dim = args.music_dim,
+    #     decoder_attention_heads = args.heads,
+    #     d_model = args.music_dim
+    # )
+
+    bartconfig = BartConfig(max_position_embeddings=args.max_len,
+                               d_model=args.hs,
+                               encoder_layers=args.layers,
+                               encoder_ffn_dim=args.ffn_dims,
+                               encoder_attention_heads=args.heads,
+                               decoder_layers=args.layers,
+                               decoder_ffn_dim=args.ffn_dims,
+                               decoder_attention_heads=args.heads
+                               )
 
     bart = ML_BART(bartconfig, class_num = args.light_dim, pretrain = True).to(device)
-    model = Sequence_Classifier(class_num = 2, hs = args.music_dim, da = args.music_dim, r = args.heads).to(device)
-    predictor = Token_Predictor(hidden_dim=args.music_dim, class_num=args.music_dim).to(device)
+    model = Sequence_Classifier(class_num = 2, hs = args.hs, da = args.hs, r = args.heads).to(device)
+    predictor = Token_Predictor(hidden_dim=args.hs, class_num=args.music_dim).to(device)
     discriminator = Sequence_Classifier(class_num=2, hs=args.music_dim, da=args.music_dim, r=args.heads).to(device)
+    
+
+    bart.load_state_dict(torch.load("./pianobart.pth"),strict=False)
+    bart.bart = get_peft_model(bart.bart, bart.lora_config)
+
 
     if len(cuda_devices) > 1 and not args.cpu:
         bart = nn.DataParallel(bart, device_ids=cuda_devices)
@@ -510,8 +530,9 @@ def main():
     while True:
         j += 1
 
-        mse, acc = iteration(train_loader,device,bart,predictor,model,discriminator,optim,optim_dis,train=True,gan=True)
-        log = "Epoch {} | Training MSE {:06f} , Training Acc {:06f} | ".format(j, mse,acc)
+        mse, acc = iteration(train_loader,device,bart,predictor,model,discriminator,optim,optim_dis,train=True,gan=True,encoder_only=args.encoder_only)
+        # log = "Epoch {} | Training MSE {:06f} , Training Acc {:06f} | ".format(j, mse,acc)
+        log = "Epoch {} | Training MSE {:06f} ".format(j, mse)
         print(log)
         with open("results/{}/log.txt".format(date_str), 'a') as file:
             file.write(log)
@@ -528,36 +549,49 @@ def main():
         # with open("results/{}/log.txt".format(date_str), 'a') as file:
         #     file.write(log)
 
-        mse = iteration_mlm(test_loader, device, bart, predictor, discriminator, optim, optim_dis, train=False, gan=False)
+        mse = iteration_mlm(test_loader, device, bart, predictor, discriminator, optim, optim_dis, train=False, gan=False,encoder_only=args.encoder_only)
         log = "Testing MSE {:06f} , ".format(mse)
         print(log)
         with open("results/{}/log.txt".format(date_str), 'a') as file:
-            file.write(log)
-
-        acc = iteration_match(test_loader,device,bart,model,optim,train=False)
-        log = "Testing Acc {:06f}".format(acc)
-        print(log)
-        with open("results/{}/log.txt".format(date_str), 'a') as file:
+            # file.write(log)
             file.write(log + "\n")
 
 
-        if acc >= best_acc or mse <= best_mse:
-            torch.save(bart.state_dict(), "results/{}/bart_pretrain.pth".format(date_str))
+        # acc = iteration_match(test_loader,device,bart,model,optim,train=False)
+        # log = "Testing Acc {:06f}".format(acc)
+        # print(log)
+        # with open("results/{}/log.txt".format(date_str), 'a') as file:
+        #     file.write(log + "\n")
 
-        if acc > best_acc:
-            best_acc = acc
-            acc_epoch = 0
-        else:
-            acc_epoch += 1
-        if mse < best_mse:
-            best_mse = mse
-            mse_epoch = 0
-        else:
-            mse_epoch += 1
 
-        if acc_epoch >= args.converge_epoch and mse_epoch >= args.converge_epoch:
-            break
-        print("Acc Epoch {:}, MSE Epoch {:}".format(acc_epoch,mse_epoch))
+        # if acc >= best_acc or mse <= best_mse:
+        #     torch.save(bart.state_dict(), "results/{}/bart_pretrain.pth".format(date_str))
+        # if acc > best_acc:
+        #     best_acc = acc
+        #     acc_epoch = 0
+        # else:
+        #     acc_epoch += 1
+        # if mse < best_mse:
+        #     best_mse = mse
+        #     mse_epoch = 0
+        # else:
+        #     mse_epoch += 1
+        # if acc_epoch >= args.converge_epoch and mse_epoch >= args.converge_epoch:
+        #     break
+        # print("Acc Epoch {:}, MSE Epoch {:}".format(acc_epoch,mse_epoch))
+
+        if j > args.min_epoch:
+            if mse <= best_mse:
+                torch.save(bart.state_dict(), "results/{}/bart_pretrain.pth".format(date_str))
+            if mse < best_mse:
+                best_mse = mse
+                mse_epoch = 0
+            else:
+                mse_epoch += 1
+            if mse_epoch >= args.converge_epoch:
+                break
+        print("Converge Epoch {:}".format(mse_epoch))
+
 
 
 if __name__ == '__main__':
@@ -567,4 +601,4 @@ if __name__ == '__main__':
     end = time.time()
     print("Time:", time.strftime("%H:%M:%S", time.gmtime(end - start)))
 
-    # python pretrain.py --data_path /mnt/disk/dian/m2l_data/output_mel/ --train_prop 0.9 --cuda_devices 0
+    # python pretrain.py --data_path /mnt/disk/dian/m2l_data/output/ --train_prop 0.9 --cuda_devices 0

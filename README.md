@@ -22,7 +22,7 @@
 ### 3. 1 Pre-train
 
 ```shell
-python pretrain.py --gan
+python pretrain.py
 ```
 
 
@@ -30,7 +30,7 @@ python pretrain.py --gan
 ### 3.2 Fine-tune
 
 ```shell
-python finetune.py --model_path <pre-training bart path>
+python finetune.py --model_path <pre-trained bart path>
 ```
 
 

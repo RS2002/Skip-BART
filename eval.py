@@ -9,6 +9,7 @@ import torch.nn as nn
 import numpy as np
 from dataset import load_data
 from util import sampling
+from peft import get_peft_model, LoraConfig
 
 pad = -1000
 
@@ -17,6 +18,7 @@ def get_args():
 
     parser.add_argument("--music_dim", type=int, default=128)
     parser.add_argument("--light_dim", type=int, nargs='+', default=[180,256])
+    parser.add_argument('--gap', type=int, default=0)
 
     parser.add_argument("--p", type=float, nargs='+', default=[0.9,0.9])
     parser.add_argument("--t", type=float, nargs='+', default=[1.1,1.1])
@@ -24,10 +26,11 @@ def get_args():
     parser.add_argument("--h_range", type=int, default=50)
     parser.add_argument("--v_range", type=int, nargs='+', default=[50,50])
 
-    parser.add_argument('--layers', type=int, default=6)
-    parser.add_argument('--max_len', type=int, default=600)
-    parser.add_argument('--gap', type=int, default=0)
+    parser.add_argument('--layers', type=int, default=8)
+    parser.add_argument('--max_len', type=int, default=1024)
     parser.add_argument('--heads', type=int, default=8)
+    parser.add_argument('--hs', type=int, default=1024)
+    parser.add_argument('--ffn_dims', type=int, default=2048)
 
     parser.add_argument("--cpu", action="store_true",default=False)
     parser.add_argument("--cuda_devices", type=int, nargs='+', default=[0])
@@ -121,26 +124,40 @@ def main():
         device_name = "cpu"
     device = torch.device(device_name)
 
-    bartconfig = BartConfig(
-        max_position_embeddings = args.max_len,
-        encoder_layers = args.layers,
-        encoder_ffn_dim = args.music_dim,
-        encoder_attention_heads = args.heads,
-        decoder_layers = args.layers,
-        decoder_ffn_dim = args.music_dim,
-        decoder_attention_heads = args.heads,
-        d_model = args.music_dim
-    )
+    # bartconfig = BartConfig(
+    #     max_position_embeddings = args.max_len,
+    #     encoder_layers = args.layers,
+    #     encoder_ffn_dim = args.music_dim,
+    #     encoder_attention_heads = args.heads,
+    #     decoder_layers = args.layers,
+    #     decoder_ffn_dim = args.music_dim,
+    #     decoder_attention_heads = args.heads,
+    #     d_model = args.music_dim
+    # )
+
+    bartconfig = BartConfig(max_position_embeddings=args.max_len,
+                            d_model=args.hs,
+                            encoder_layers=args.layers,
+                            encoder_ffn_dim=args.ffn_dims,
+                            encoder_attention_heads=args.heads,
+                            decoder_layers=args.layers,
+                            decoder_ffn_dim=args.ffn_dims,
+                            decoder_attention_heads=args.heads
+                            )
+
 
     bart = ML_BART(bartconfig, class_num = args.light_dim).to(device)
-    model = ML_Classifier(hidden_dim = args.music_dim, class_num = args.light_dim).to(device)
+    model = ML_Classifier(hidden_dim = args.hs, class_num = args.light_dim).to(device)
+
+    bart.bart = get_peft_model(bart.bart, bart.lora_config)
+
 
     if len(cuda_devices) > 1 and not args.cpu:
         bart = nn.DataParallel(bart, device_ids=cuda_devices)
         model = nn.DataParallel(model, device_ids=cuda_devices)
 
-    bart.load_state_dict(torch.load(args.bart_path, weights_only=True))
-    model.load_state_dict(torch.load(args.head_path, weights_only=True))
+    bart.load_state_dict(torch.load(args.bart_path),strict=True)
+    model.load_state_dict(torch.load(args.head_path),strict=True)
 
     torch.set_grad_enabled(False)
     bart.eval()

@@ -4,6 +4,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.nn.init as init
+from peft import get_peft_model, LoraConfig
 
 
 class MLP(nn.Module):
@@ -59,7 +60,7 @@ class BART(nn.Module):
 
 
 class ML_BART(nn.Module):
-    def __init__(self, bartconfig, class_num = [180,256], pretrain = False):
+    def __init__(self, bartconfig, class_num = [180,256], pretrain = False, music_dim=512):
         super().__init__()
         d_model = bartconfig.d_model
         self.decoder_emb = nn.ModuleList([
@@ -70,11 +71,20 @@ class ML_BART(nn.Module):
         self.bart = BartModel(bartconfig)
         self.pretrain = pretrain
 
+        self.encoder = MLP([music_dim,d_model])
+        self.lora_config = LoraConfig(
+            r=4,
+            lora_alpha=16,
+            lora_dropout=0.1
+        )
+
     def forward(self, x_encoder, x_decoder, attn_mask_encoder = None, attn_mask_decoder = None):
-        emb_encoder = x_encoder
+        # emb_encoder = x_encoder
+        emb_encoder = self.encoder(x_encoder)
 
         if self.pretrain:
-            emb_decoder = x_decoder
+            # emb_decoder = x_decoder
+            emb_decoder = self.encoder(x_decoder)
         else:
             emb_decoder = torch.concatenate([self.decoder_emb[0](x_decoder[...,0]),self.decoder_emb[1](x_decoder[...,1])],dim=-1)
             emb_decoder = self.decoder_fusion(emb_decoder)
@@ -86,7 +96,9 @@ class ML_BART(nn.Module):
         return y
 
     def encode(self, x_encoder, attn_mask_encoder = None):
-        emb_encoder = x_encoder
+        # emb_encoder = x_encoder
+        emb_encoder = self.encoder(x_encoder)
+        
         y = self.bart.encoder(inputs_embeds=emb_encoder, attention_mask=attn_mask_encoder, output_hidden_states=False)
         y = y.last_hidden_state
         return y
@@ -143,9 +155,7 @@ class Token_Predictor(nn.Module):
     def __init__(self, hidden_dim=512, class_num=1):
         super().__init__()
         self.classifier = MLP([hidden_dim, (hidden_dim+class_num)//2, class_num])
-        self.sigmoid = nn.Sigmoid()
 
     def forward(self, x):
         x = self.classifier(x)
-        x = self.sigmoid(x)
         return x

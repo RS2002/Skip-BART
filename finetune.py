@@ -13,6 +13,7 @@ import numpy as np
 from dataset import load_data
 import random
 from torch.optim import AdamW
+from peft import get_peft_model, LoraConfig
 
 pad = -1000
 
@@ -20,13 +21,15 @@ pad = -1000
 def get_args():
     parser = argparse.ArgumentParser(description='')
 
-    parser.add_argument("--music_dim", type=int, default=128)
+    parser.add_argument("--music_dim", type=int, default=512)
     parser.add_argument("--light_dim", type=int, nargs='+', default=[180, 256])
-
-    parser.add_argument('--layers', type=int, default=6)
-    parser.add_argument('--max_len', type=int, default=600)
     parser.add_argument('--gap', type=int, default=0)
+
+    parser.add_argument('--layers', type=int, default=8)
+    parser.add_argument('--max_len', type=int, default=1024)
     parser.add_argument('--heads', type=int, default=8)
+    parser.add_argument('--hs', type=int, default=1024)
+    parser.add_argument('--ffn_dims', type=int, default=2048)
 
     parser.add_argument("--cpu", action="store_true", default=False)
     parser.add_argument("--cuda_devices", type=int, nargs='+', default=[0])
@@ -70,8 +73,8 @@ def iteration(data_loader, device, bart, model, optim, train=True, weight=[1.0, 
 
         # # 0. Random Pad
         # length = random.randint(0, 200)
-        # music[:, 600 - length:, :] = pad
-        # light[:, 600 - length:, :] = pad
+        # music[:, 1024 - length:, :] = pad
+        # light[:, 1024 - length:, :] = pad
 
         # 1. Tokenize Light
         light[light[..., 0] < 0, 0] = 180
@@ -93,7 +96,7 @@ def iteration(data_loader, device, bart, model, optim, train=True, weight=[1.0, 
         std = torch.sqrt(torch.sum(((music - avg) ** 2) * non_pad, dim=1, keepdim=True) / (
                 torch.sum(non_pad, dim=1, keepdim=True) + 1e-8))
         rand_word = (rand_word + avg) * std
-        rand_word = torch.clip(rand_word,0,1)
+        # rand_word = torch.clip(rand_word,0,1)
         music[~non_pad.bool()] = rand_word[~non_pad.bool()]
         attn_mask = non_pad[..., 0].float()
         attn_mask_light = torch.zeros_like(attn_mask)
@@ -140,26 +143,40 @@ def main():
     # mkdir results/{date_str}
     os.makedirs("results/{}".format(date_str), exist_ok=True)
 
-    bartconfig = BartConfig(
-        max_position_embeddings=args.max_len,
-        encoder_layers=args.layers,
-        encoder_ffn_dim=args.music_dim,
-        encoder_attention_heads=args.heads,
-        decoder_layers=args.layers,
-        decoder_ffn_dim=args.music_dim,
-        decoder_attention_heads=args.heads,
-        d_model=args.music_dim
-    )
+    # bartconfig = BartConfig(
+    #     max_position_embeddings=args.max_len,
+    #     encoder_layers=args.layers,
+    #     encoder_ffn_dim=args.music_dim,
+    #     encoder_attention_heads=args.heads,
+    #     decoder_layers=args.layers,
+    #     decoder_ffn_dim=args.music_dim,
+    #     decoder_attention_heads=args.heads,
+    #     d_model=args.music_dim
+    # )
+
+    bartconfig = BartConfig(max_position_embeddings=args.max_len,
+                            d_model=args.hs,
+                            encoder_layers=args.layers,
+                            encoder_ffn_dim=args.ffn_dims,
+                            encoder_attention_heads=args.heads,
+                            decoder_layers=args.layers,
+                            decoder_ffn_dim=args.ffn_dims,
+                            decoder_attention_heads=args.heads
+                            )
+
 
     bart = ML_BART(bartconfig, class_num=args.light_dim).to(device)
-    model = ML_Classifier(hidden_dim=args.music_dim, class_num=args.light_dim).to(device)
+    model = ML_Classifier(hidden_dim=args.hs, class_num=args.light_dim).to(device)
+
+    bart.load_state_dict(torch.load("./pianobart.pth"),strict=False)
+    bart.bart = get_peft_model(bart.bart, bart.lora_config)
 
     if len(cuda_devices) > 1 and not args.cpu:
         bart = nn.DataParallel(bart, device_ids=cuda_devices)
         model = nn.DataParallel(model, device_ids=cuda_devices)
 
     if args.model_path is not None:
-        bart.load_state_dict(torch.load(args.model_path, weights_only=True))
+        bart.load_state_dict(torch.load(args.model_path),strict=True)
         print("Load Model from ", args.model_path)
         if args.reset_decoder:
             bart.reset_decoder()
@@ -228,4 +245,4 @@ if __name__ == '__main__':
     end = time.time()
     print("Time:", time.strftime("%H:%M:%S", time.gmtime(end - start)))
 
-    # python finetune.py --train_prop 0.9 --cuda_devices 0 --data_path /mnt/disk/dian/m2l_data/ --model_path
+    # python finetune.py --train_prop 0.9 --cuda_devices 0 --data_path /mnt/disk/dian/m2l_data/output/ --model_path
