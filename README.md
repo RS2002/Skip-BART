@@ -13,7 +13,7 @@
 
 ## 2. Dataset: RPMC-L
 
-
+[RPMC_L2](https://zenodo.org/records/14854217?token=eyJhbGciOiJIUzUxMiJ9.eyJpZCI6IjM5MDcwY2E5LTY0MzUtNGZhZC04NzA4LTczMjNhNTZiOGZmYSIsImRhdGEiOnt9LCJyYW5kb20iOiI1YWRkZmNiMmYyOGNiYzI4ZWUxY2QwNTAyY2YxNTY4ZiJ9.0Jr6GYfyyn02F96eVpkjOtcE-MM1wt-_ctOshdNGMUyUKI15-9Rfp9VF30_hYOTqv_9lLj-7Wj0qGyR3p9cA5w)
 
 
 
@@ -35,18 +35,10 @@ python finetune.py --model_path <pre-trained bart path>
 
 
 
-### 3.3 Infer
-
-```shell
-python eval.py --bart_path <fine-tuned bart path > --head_path <classifier head path >
-```
-
-
-
 ## 4. Generate Your Own Stage Light
 
 ```shell
-
+python generate.py --bart_path <fine-tuned backbone path> --head_path <fine-tuned model head path> --music_file <music file path>
 ```
 
 
