@@ -63,11 +63,13 @@ class ML_BART(nn.Module):
     def __init__(self, bartconfig, class_num = [180,256], pretrain = False, music_dim=512):
         super().__init__()
         d_model = bartconfig.d_model
+
         self.decoder_emb = nn.ModuleList([
-            nn.Embedding(class_num[0] + 1, d_model),
-            nn.Embedding(class_num[1] + 1, d_model)
+            nn.Embedding(class_num[0] + 1, d_model // 4),
+            nn.Embedding(class_num[1] + 1, d_model // 4)
         ])
-        self.decoder_fusion = MLP([d_model*2,d_model])
+        self.decoder = MLP([music_dim,d_model//2])
+
         self.bart = BartModel(bartconfig)
         self.pretrain = pretrain
 
@@ -86,8 +88,7 @@ class ML_BART(nn.Module):
             # emb_decoder = x_decoder
             emb_decoder = self.encoder(x_decoder)
         else:
-            emb_decoder = torch.concatenate([self.decoder_emb[0](x_decoder[...,0]),self.decoder_emb[1](x_decoder[...,1])],dim=-1)
-            emb_decoder = self.decoder_fusion(emb_decoder)
+            emb_decoder = torch.concatenate([self.decoder_emb[0](x_decoder[..., 0]), self.decoder_emb[1](x_decoder[..., 1]), self.decoder(x_encoder)], dim=-1)
 
         y = self.bart(inputs_embeds=emb_encoder, decoder_inputs_embeds=emb_decoder,
                       attention_mask=attn_mask_encoder, decoder_attention_mask=attn_mask_decoder,
