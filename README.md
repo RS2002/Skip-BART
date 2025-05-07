@@ -43,7 +43,7 @@ python finetune.py --model_path <pre-trained bart path>
 python generate.py --bart_path <fine-tuned backbone path> --head_path <fine-tuned model head path> --music_file <music file path>
 ```
 
-The trained parameters have been uploaded at `./parameters` folder.
+The trained parameters are available at [trained.zip](https://zenodo.org/records/15348791?token=eyJhbGciOiJIUzUxMiJ9.eyJpZCI6ImNiMzM5Y2RkLWEyODktNDRkYy1iOTE0LTQ3MmRmMjVjNzljMiIsImRhdGEiOnt9LCJyYW5kb20iOiJhMjkzZjNkYjlkNWM4NTUyOWQwZWJiZWY2MmYzMDFlMCJ9.MamQE2FaJ4LqdbgS9cOeLRZEa559Am8_xbAjwXLX0IRSfNtgvnjcy2G2SEJHYVPX0nNY3-6o7lAbGk39AyyrWA) anonymously.
 
 
 

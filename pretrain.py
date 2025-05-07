@@ -600,5 +600,3 @@ if __name__ == '__main__':
     main()
     end = time.time()
     print("Time:", time.strftime("%H:%M:%S", time.gmtime(end - start)))
-
-    # python pretrain.py --data_path /mnt/disk/dian/m2l_data/output/ --train_prop 0.9 --cuda_devices 0

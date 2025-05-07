@@ -1,5 +1,3 @@
-# python finetune.py --model_path bart_pretrain.pth --data_path ../m2l/output/ --train_prop 0.9 --cuda_devices 2
-
 import datetime
 import os
 from model import ML_BART, ML_Classifier
@@ -244,5 +242,3 @@ if __name__ == '__main__':
     main()
     end = time.time()
     print("Time:", time.strftime("%H:%M:%S", time.gmtime(end - start)))
-
-    # python finetune.py --train_prop 0.9 --cuda_devices 0 --data_path /mnt/disk/dian/m2l_data/output/ --model_path
