@@ -1,5 +1,5 @@
-# Skip-BART
-**Article:** "Skip-BART: Is Stage Lighting the Inspiration for Art or Mechanized Formula" (under review)
+# ML-BART
+**Article:** "Automatic Stage Lighting Control: Is it a Rule-Driven Process or Generative Task?" (under review)
 
 
 
