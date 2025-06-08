@@ -1,4 +1,4 @@
-# ML-BART
+# Skip-BART
 **Article:** "Automatic Stage Lighting Control: Is it a Rule-Driven Process or Generative Task?" (under review)
 
 
