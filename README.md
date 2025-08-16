@@ -1,5 +1,5 @@
 # Skip-BART
-**Article:** "Automatic Stage Lighting Control: Is it a Rule-Driven Process or Generative Task?" (under review)
+**Article:** Zijian Zhao, Dian Jin, Zijing Zhou, Xiaoyu Zhang*, "[Automatic Stage Lighting Control: Is it a Rule-Driven Process or Generative Task?](https://arxiv.org/abs/2506.01482)" (under review)
 
 
 
@@ -50,6 +50,11 @@ The trained parameters are available at [trained.zip](https://zenodo.org/records
 ## 5. Citation
 
 ```
-
+@article{zhao2025automatic,
+  title={Automatic Stage Lighting Control: Is it a Rule-Driven Process or Generative Task?},
+  author={Zhao, Zijian and Jin, Dian and Zhou, Zijing and Zhang, Xiaoyu},
+  journal={arXiv preprint arXiv:2506.01482},
+  year={2025}
+}
 ```
 
