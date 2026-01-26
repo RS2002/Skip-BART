@@ -1,5 +1,5 @@
 # Skip-BART
-**Article:** Zijian Zhao, Dian Jin, Zijing Zhou, Xiaoyu Zhang*, "[Automatic Stage Lighting Control: Is it a Rule-Driven Process or Generative Task?](https://arxiv.org/abs/2506.01482)" (under review)
+**Article:** Zijian Zhao, Dian Jin, Zijing Zhou, Xiaoyu Zhang*, "[Automatic Stage Lighting Control: Is it a Rule-Driven Process or Generative Task?](https://openreview.net/forum?id=a4Got6azjF&referrer=%5BAuthor%20Console%5D(%2Fgroup%3Fid%3DICLR.cc%2F2026%2FConference%2FAuthors%23your-submissions))", 2026 International Conference on Learning Representations (ICLR), 2026
 
 **Notice:** We have uploaded the model, full parameters ([RS2002/Skip-BART · Hugging Face](https://huggingface.co/RS2002/Skip-BART)), and dataset ([RS2002/RPMC-L2 · Datasets at Hugging Face](https://huggingface.co/datasets/RS2002/RPMC-L2)) in Hugging Face.
 
