@@ -50,11 +50,11 @@ The trained parameters are available at [trained.zip](https://huggingface.co/RS2
 ## 5. Citation
 
 ```
-@article{zhao2025automatic,
+@inproceedings{zhao2026automatic,
   title={Automatic Stage Lighting Control: Is it a Rule-Driven Process or Generative Task?},
   author={Zhao, Zijian and Jin, Dian and Zhou, Zijing and Zhang, Xiaoyu},
-  journal={arXiv preprint arXiv:2506.01482},
-  year={2025}
+  booktitle={The Fourteenth International Conference on Learning Representations},
+  year={2026}
 }
 ```
 
