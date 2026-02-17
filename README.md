@@ -3,6 +3,8 @@
 
 **Notice:** We have uploaded the model, full parameters ([RS2002/Skip-BART · Hugging Face](https://huggingface.co/RS2002/Skip-BART)), and dataset ([RS2002/RPMC-L2 · Datasets at Hugging Face](https://huggingface.co/datasets/RS2002/RPMC-L2)) in Hugging Face. The pre-trained parameters of PianoBART can be found at [Official Repository for The Paper, PianoBART: Symbolic Piano Music Understanding and Generating with Large-Scale Pre-Training](https://github.com/RS2002/PianoBart) and [RS2002/PianoBART · Hugging Face](https://huggingface.co/RS2002/PianoBART).
 
+<video src="https://zijianzhao.netlify.app/projects/SkipBART.mp4" controls></video>
+
 ## 1. Model Structure
 
 <img src="./img/model.png" style="zoom:50%;" />
