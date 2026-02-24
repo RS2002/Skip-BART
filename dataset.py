@@ -29,7 +29,7 @@ class ML_Dataset(Dataset):
         light = data['light']
 
         h = [light[int(i)][60][0] for i in sample]
-        v = [light[int(i)][0][1] for i in sample]
+        v = [light[int(i)][0][2] for i in sample]
         h = np.array(h)
         v = np.array(v)
 
